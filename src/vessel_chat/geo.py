@@ -146,7 +146,7 @@ def downsample(points: list[Point], max_points: int) -> list[Point]:
 
 def track_geometry(points: list[Point], gap_hours: float) -> dict | None:
     """LineString, hoặc MultiLineString khi hành trình có khe (không vẽ nối qua khe)."""
-    segs = [[[p.lon, p.lat] for p in s] for s in split_segments(points, gap_hours)]
+    segs = [[[round(p.lon, 5), round(p.lat, 5)] for p in s] for s in split_segments(points, gap_hours)]
     segs = [s if len(s) > 1 else s * 2 for s in segs]  # đoạn 1 điểm vẫn hiển thị được
     if not segs:
         return None

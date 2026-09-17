@@ -67,3 +67,37 @@ async def positions_for_vessels(
     for r in rows:
         out.setdefault(r["vessel_id"], []).append(_point(r))
     return out
+
+
+async def first_at_or_after(conn: asyncpg.Connection, vessel_id: str, ts: datetime) -> Point | None:
+    row = await conn.fetchrow(
+        f"SELECT {_COLS} FROM ais_positions WHERE vessel_id = $1 AND event_ts >= $2 ORDER BY event_ts LIMIT 1",
+        vessel_id, ts,
+    )
+    return _point(row) if row else None
+
+
+async def vessel_ais_summary(conn: asyncpg.Connection, vessel_id: str) -> dict:
+    row = await conn.fetchrow(
+        """
+        SELECT count(*) AS position_count, min(event_ts) AS first_ts, max(event_ts) AS last_ts
+        FROM ais_positions WHERE vessel_id = $1
+        """,
+        vessel_id,
+    )
+    return dict(row)
+
+
+async def destinations_between(conn: asyncpg.Connection, vessel_id: str, start: datetime, end: datetime) -> list[str]:
+    """Các cảng đích tàu tự khai báo (reported_dest), theo thứ tự xuất hiện."""
+    rows = await conn.fetch(
+        """
+        SELECT reported_dest, min(event_ts) AS first_seen
+        FROM ais_positions
+        WHERE vessel_id = $1 AND event_ts BETWEEN $2 AND $3 AND coalesce(reported_dest, '') <> ''
+        GROUP BY reported_dest
+        ORDER BY first_seen
+        """,
+        vessel_id, start, end,
+    )
+    return [r["reported_dest"] for r in rows]

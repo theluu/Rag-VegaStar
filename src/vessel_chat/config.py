@@ -54,7 +54,6 @@ class Settings(BaseSettings):
     db_statement_timeout_ms: int = 15000
     db_pool_min: int = 1
     db_pool_max: int = 10
-    map_data_ttl_hours: int = 72
     cors_origins: str = ""
     api_host: str = "0.0.0.0"
     api_port: int = 8000
