@@ -1,0 +1,974 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Vessel Chat API",
+    "description": "Chatbot tra cứu tàu biển: chat streaming (SSE), bộ nhớ dài hạn, dữ liệu bản đồ GeoJSON.",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/conversations": {
+      "get": {
+        "tags": [
+          "conversations"
+        ],
+        "summary": "List Conversations",
+        "operationId": "list_conversations_conversations_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ConversationOut"
+                  },
+                  "type": "array",
+                  "title": "Response List Conversations Conversations Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "conversations"
+        ],
+        "summary": "Create Conversation",
+        "operationId": "create_conversation_conversations_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/CreateConversation"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/conversations/{conv_id}": {
+      "get": {
+        "tags": [
+          "conversations"
+        ],
+        "summary": "Get Conversation",
+        "operationId": "get_conversation_conversations__conv_id__get",
+        "parameters": [
+          {
+            "name": "conv_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Conv Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "conversations"
+        ],
+        "summary": "Delete Conversation",
+        "operationId": "delete_conversation_conversations__conv_id__delete",
+        "parameters": [
+          {
+            "name": "conv_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Conv Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/conversations/{conv_id}/messages": {
+      "get": {
+        "tags": [
+          "conversations"
+        ],
+        "summary": "List Messages",
+        "operationId": "list_messages_conversations__conv_id__messages_get",
+        "parameters": [
+          {
+            "name": "conv_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Conv Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MessageOut"
+                  },
+                  "title": "Response List Messages Conversations  Conv Id  Messages Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/conversations/{conv_id}/map-data": {
+      "get": {
+        "tags": [
+          "conversations"
+        ],
+        "summary": "List Map Data",
+        "operationId": "list_map_data_conversations__conv_id__map_data_get",
+        "parameters": [
+          {
+            "name": "conv_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Conv Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MapDataRef"
+                  },
+                  "title": "Response List Map Data Conversations  Conv Id  Map Data Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/conversations/{conv_id}/chat": {
+      "post": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Chat",
+        "operationId": "chat_conversations__conv_id__chat_post",
+        "parameters": [
+          {
+            "name": "conv_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Conv Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Server-Sent Events: token, tool_call, tool_result, data, memory, error, done",
+            "content": {
+              "text/event-stream": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/map-data/{data_id}": {
+      "get": {
+        "tags": [
+          "map"
+        ],
+        "summary": "Get Map Data",
+        "operationId": "get_map_data_map_data__data_id__get",
+        "parameters": [
+          {
+            "name": "data_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Data Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/vessels/search": {
+      "get": {
+        "tags": [
+          "map",
+          "vessels"
+        ],
+        "summary": "Search Vessels",
+        "operationId": "search_vessels_vessels_search_get",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100,
+              "title": "Q"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "default": 10,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/vessels/{vessel}/dark-gaps": {
+      "get": {
+        "tags": [
+          "map",
+          "vessels"
+        ],
+        "summary": "Vessel Dark Gaps",
+        "description": "GeoJSON các lần mất tín hiệu của một tàu (vessel = vessel_id / tên / MMSI / IMO).",
+        "operationId": "vessel_dark_gaps_vessels__vessel__dark_gaps_get",
+        "parameters": [
+          {
+            "name": "vessel",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Vessel"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Start"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "End"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tracks": {
+      "get": {
+        "tags": [
+          "map",
+          "vessels"
+        ],
+        "summary": "Get Tracks",
+        "description": "Nhiều hành trình dạng GeoJSON FeatureCollection, phân trang theo tàu (limit/offset).",
+        "operationId": "get_tracks_tracks_get",
+        "parameters": [
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Start"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "End"
+            }
+          },
+          {
+            "name": "vessel",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Lặp lại để lấy nhiều tàu (id/tên/MMSI/IMO)",
+              "title": "Vessel"
+            },
+            "description": "Lặp lại để lấy nhiều tàu (id/tên/MMSI/IMO)"
+          },
+          {
+            "name": "company",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Company"
+            }
+          },
+          {
+            "name": "role",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "registered_owner",
+                    "beneficial_owner",
+                    "operator",
+                    "commercial_manager",
+                    "technical_manager",
+                    "ism_manager"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Role"
+            }
+          },
+          {
+            "name": "ship_type_group",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "tanker",
+                    "cargo",
+                    "fishing",
+                    "tug",
+                    "passenger",
+                    "high_speed",
+                    "pleasure",
+                    "special",
+                    "other",
+                    "unknown"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ship Type Group"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Health",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ChatRequest": {
+        "properties": {
+          "message": {
+            "type": "string",
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "title": "ChatRequest"
+      },
+      "ConversationDetail": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "message_count": {
+            "type": "integer",
+            "title": "Message Count",
+            "default": 0
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "summary_upto_turn": {
+            "type": "integer",
+            "title": "Summary Upto Turn"
+          },
+          "focus_state": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Focus State"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "created_at",
+          "updated_at",
+          "summary",
+          "summary_upto_turn",
+          "focus_state"
+        ],
+        "title": "ConversationDetail"
+      },
+      "ConversationOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "message_count": {
+            "type": "integer",
+            "title": "Message Count",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ConversationOut"
+      },
+      "CreateConversation": {
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "type": "object",
+        "title": "CreateConversation"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "MapDataRef": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "summary": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Summary"
+          },
+          "bbox": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bbox"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "summary",
+          "bbox",
+          "created_at"
+        ],
+        "title": "MapDataRef"
+      },
+      "MessageOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "turn_no": {
+            "type": "integer",
+            "title": "Turn No"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
+          "tool_calls": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool Calls"
+          },
+          "tool_call_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool Call Id"
+          },
+          "tool_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool Name"
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meta"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "turn_no",
+          "role",
+          "content",
+          "created_at"
+        ],
+        "title": "MessageOut"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}
