@@ -112,3 +112,63 @@ async def test_tool_pool_is_read_only(open_client):
         assert await conn.fetchval("SELECT count(*) FROM vessels") == 6
         with pytest.raises(asyncpg.ReadOnlySQLTransactionError):
             await conn.execute("DELETE FROM vessels")
+
+
+async def test_login_flow_protects_api(settings, pool):
+    app = make_app(settings, auth_users="demo:demo", session_secret="test-secret", rate_limit_login_per_minute=100)
+    async with LifespanManager(app):
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://t") as c:
+            health = (await c.get("/health")).json()
+            assert health["auth_required"] is True and health["login_enabled"] is True
+            for path in ("/conversations", "/stats", "/tracks?company=x", "/auth/me"):
+                assert (await c.get(path)).status_code == 401, path
+
+            bad = await c.post("/auth/login", json={"username": "demo", "password": "sai"})
+            assert bad.status_code == 401 and "token" not in bad.json()
+            assert (await c.post("/auth/login", json={"username": "ai-do", "password": "demo"})).status_code == 401
+            assert (await c.post("/auth/login", json={"username": "", "password": "demo"})).status_code == 422
+
+            ok = await c.post("/auth/login", json={"username": " demo ", "password": "demo"})
+            assert ok.status_code == 200
+            body = ok.json()
+            assert body["username"] == "demo" and body["token_type"] == "Bearer" and body["expires_at"]
+            auth = {"Authorization": f"Bearer {body['token']}"}
+
+            me = await c.get("/auth/me", headers=auth)
+            assert me.status_code == 200 and me.json()["username"] == "demo"
+            cid = (await c.post("/conversations", json={}, headers=auth)).json()["id"]
+            r = await c.post(f"/conversations/{cid}/chat", json={"message": "xin chào"}, headers=auth)
+            assert r.status_code == 200 and "event: done" in r.text
+            assert (await c.get("/conversations", headers={"Authorization": "Bearer v1.x.y"})).status_code == 401
+
+            # token ký bằng khoá khác (vd. server đổi SESSION_SECRET) bị từ chối
+            other = make_app(settings, auth_users="demo:demo", session_secret="other-secret")
+            forged, _ = other.state.session_signer.issue("demo")
+            assert (await c.get("/conversations", headers={"Authorization": f"Bearer {forged}"})).status_code == 401
+
+
+async def test_login_rate_limit_and_disabled_login(settings, pool):
+    app = make_app(settings, auth_users="demo:demo", session_secret="s", rate_limit_login_per_minute=2)
+    async with LifespanManager(app):
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://t") as c:
+            codes = [(await c.post("/auth/login", json={"username": "demo", "password": "x"})).status_code
+                     for _ in range(3)]
+            assert codes == [401, 401, 429]
+
+    app = make_app(settings)
+    async with LifespanManager(app):
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://t") as c:
+            assert (await c.post("/auth/login", json={"username": "demo", "password": "demo"})).status_code == 404
+            assert (await c.get("/conversations")).status_code == 200
+
+
+async def test_api_key_still_works_with_login_enabled(settings, pool):
+    app = make_app(settings, auth_users="demo:demo", session_secret="s", api_keys="svc-key")
+    async with LifespanManager(app):
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://t") as c:
+            assert (await c.get("/conversations", headers={"X-API-Key": "svc-key"})).status_code == 200
+            assert (await c.get("/auth/me", headers={"X-API-Key": "svc-key"})).status_code == 404

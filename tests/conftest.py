@@ -34,6 +34,10 @@ def settings() -> Settings:
             "memory_compaction_wait_seconds": 5,
             "debug_memory_events": True,
             "cors_origins": "http://localhost:5173",
+            # Không phụ thuộc .env của máy chạy test: test nào cần xác thực sẽ tự bật
+            "auth_users": "",
+            "api_keys": "",
+            "session_secret": "",
         }
     )
 

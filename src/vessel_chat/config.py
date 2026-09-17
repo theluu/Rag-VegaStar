@@ -62,6 +62,11 @@ class Settings(BaseSettings):
 
     # --- Bảo mật ---
     api_keys: str = ""  # danh sách phân tách dấu phẩy; rỗng = tắt xác thực
+    # Đăng nhập giao diện: "tên:mật_khẩu" phân tách dấu phẩy; mật khẩu có thể là chuỗi pbkdf2_sha256$...
+    auth_users: str = ""
+    session_secret: str = ""  # khoá ký token phiên; rỗng = sinh ngẫu nhiên mỗi lần khởi động
+    session_ttl_hours: float = 12
+    rate_limit_login_per_minute: int = 10
     rate_limit_chat_per_minute: int = 20
     rate_limit_api_per_minute: int = 300
     trust_proxy_headers: bool = False
@@ -101,6 +106,19 @@ class Settings(BaseSettings):
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+    @property
+    def auth_user_map(self) -> dict[str, str]:
+        users = {}
+        for item in self.auth_users.split(","):
+            name, sep, password = item.strip().partition(":")
+            if sep and name.strip() and password:
+                users[name.strip()] = password
+        return users
+
+    @property
+    def auth_enabled(self) -> bool:
+        return bool(self.api_key_list or self.auth_user_map)
 
     @property
     def api_key_list(self) -> list[str]:

@@ -28,6 +28,7 @@ from pathlib import Path
 import httpx
 import yaml
 
+from vessel_chat.client_auth import add_auth_arguments, auth_headers
 from vessel_chat.guardrails.output import extract_answer_numbers
 from vessel_chat.textutil import fold
 
@@ -250,7 +251,7 @@ def write_report(results: list[dict], args, health: dict) -> float:
 async def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--api-url", default=os.environ.get("API_URL", "http://localhost:8000"))
-    parser.add_argument("--api-key", default=os.environ.get("EVAL_API_KEY"))
+    add_auth_arguments(parser)
     parser.add_argument("--cases", nargs="*", default=[str(ROOT / "evals/cases.static.yaml"),
                                                        str(ROOT / "evals/cases.generated.yaml")])
     parser.add_argument("--only", nargs="*", help="Chỉ chạy các id / nhóm này")
@@ -269,7 +270,8 @@ async def main() -> None:
     if not cases:
         sys.exit("Không có ca nào (chạy evals/generate.py trước?)")
 
-    headers = {"X-API-Key": args.api_key} if args.api_key else {}
+    headers = await auth_headers(args.api_url, args.api_key or os.environ.get("EVAL_API_KEY"),
+                                 args.username, args.password)
     async with httpx.AsyncClient(base_url=args.api_url, headers=headers, timeout=httpx.Timeout(180, connect=10)) as client:
         health = (await client.get("/health")).raise_for_status().json()
         sem = asyncio.Semaphore(args.concurrency)

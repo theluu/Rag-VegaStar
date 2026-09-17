@@ -19,6 +19,8 @@ from pathlib import Path
 import httpx
 import yaml
 
+from vessel_chat.client_auth import add_auth_arguments, auth_headers
+
 ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -112,7 +114,8 @@ async def run(args) -> None:
     (out_dir / "raw").mkdir(parents=True, exist_ok=True)
 
     rows = []
-    async with httpx.AsyncClient(base_url=args.api_url, timeout=httpx.Timeout(180, connect=10)) as client:
+    headers = await auth_headers(args.api_url, args.api_key, args.username, args.password)
+    async with httpx.AsyncClient(base_url=args.api_url, headers=headers, timeout=httpx.Timeout(180, connect=10)) as client:
         health = (await client.get("/health")).raise_for_status().json()
         for sc in scenarios:
             conv = (await client.post("/conversations", json={"title": sc["title"]})).raise_for_status().json()
@@ -159,6 +162,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--api-url", default=os.environ.get("API_URL", "http://localhost:8000"))
     parser.add_argument("--only", nargs="*", help="Chỉ chạy các id kịch bản này")
+    add_auth_arguments(parser)
     parser.add_argument("--price-in", type=float, default=float(os.environ.get("PRICE_INPUT_PER_M", "0.15")),
                         help="USD / 1M token vào (mặc định giá gpt-4o-mini)")
     parser.add_argument("--price-out", type=float, default=float(os.environ.get("PRICE_OUTPUT_PER_M", "0.60")),

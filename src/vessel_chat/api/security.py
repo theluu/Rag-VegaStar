@@ -1,4 +1,4 @@
-"""Xác thực API key, rate limit và middleware bảo mật (ASGI thuần để không ảnh hưởng stream SSE)."""
+"""Xác thực (API key hoặc token phiên đăng nhập), rate limit và middleware bảo mật (ASGI thuần để không ảnh hưởng stream SSE)."""
 
 import hashlib
 import hmac
@@ -13,7 +13,7 @@ from fastapi import HTTPException, Request
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from ..config import Settings
-from ..observability import RATE_LIMITED
+from ..observability import AUTH_EVENTS, RATE_LIMITED
 
 log = logging.getLogger(__name__)
 
@@ -62,10 +62,7 @@ def _provided_key(request: Request) -> str | None:
     return None
 
 
-def client_id(request: Request, settings: Settings) -> str:
-    key = _provided_key(request)
-    if key and settings.api_key_list:
-        return "key:" + hashlib.sha256(key.encode()).hexdigest()[:16]
+def client_ip(request: Request, settings: Settings) -> str:
     if settings.trust_proxy_headers:
         forwarded = request.headers.get("x-forwarded-for")
         if forwarded:
@@ -73,13 +70,39 @@ def client_id(request: Request, settings: Settings) -> str:
     return "ip:" + (request.client.host if request.client else "unknown")
 
 
-def require_api_key(request: Request) -> None:
+def client_id(request: Request, settings: Settings) -> str:
+    """Khoá rate limit: người dùng / API key đã xác thực, nếu không thì theo IP."""
+    principal = getattr(request.state, "principal", None)
+    return principal or client_ip(request, settings)
+
+
+def require_auth(request: Request) -> None:
+    """Chấp nhận API key (`API_KEYS`) hoặc token phiên từ `POST /auth/login` (`AUTH_USERS`).
+
+    Không cấu hình cả hai thì API mở (chế độ phát triển).
+    """
     settings: Settings = request.app.state.settings
-    valid = settings.api_key_list
-    if not valid:
+    if not settings.auth_enabled:
         return
-    if not key_matches(_provided_key(request), valid):
-        raise HTTPException(status_code=401, detail="Thiếu hoặc sai API key", headers={"WWW-Authenticate": "Bearer"})
+    provided = _provided_key(request)
+    if provided:
+        keys = settings.api_key_list
+        if keys and key_matches(provided, keys):
+            request.state.principal = "key:" + hashlib.sha256(provided.encode()).hexdigest()[:16]
+            return
+        users = settings.auth_user_map
+        signer = request.app.state.session_signer
+        session = signer.verify(provided) if users else None
+        if session is not None and session.username in users:
+            request.state.principal = "user:" + session.username
+            request.state.session = session
+            return
+    AUTH_EVENTS.labels("rejected").inc()
+    raise HTTPException(
+        status_code=401,
+        detail="Cần đăng nhập hoặc API key hợp lệ",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
 
 
 def _limit(request: Request, limiter_name: str) -> None:
@@ -101,6 +124,20 @@ def limit_api(request: Request) -> None:
 
 def limit_chat(request: Request) -> None:
     _limit(request, "chat_limiter")
+
+
+def limit_login(request: Request) -> None:
+    """Giới hạn số lần thử đăng nhập theo IP (chống dò mật khẩu)."""
+    settings: Settings = request.app.state.settings
+    limiter: RateLimiter = request.app.state.login_limiter
+    allowed, retry_after = limiter.check(client_ip(request, settings))
+    if not allowed:
+        RATE_LIMITED.labels("login_limiter").inc()
+        raise HTTPException(
+            status_code=429,
+            detail="Thử đăng nhập quá nhiều lần, vui lòng đợi rồi thử lại",
+            headers={"Retry-After": str(max(1, round(retry_after)))},
+        )
 
 
 class SecurityMiddleware:

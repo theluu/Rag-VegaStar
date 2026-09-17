@@ -4,6 +4,7 @@
 """
 
 import logging
+import secrets
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
@@ -21,8 +22,9 @@ from ..guardrails.input import Moderator
 from ..llm.client import Embedder, LLMClient, OpenAIEmbedder, OpenAILLM, OpenAIModerator
 from ..observability import MetricsMiddleware, configure_logging
 from ..rag.store import ingest_directory
-from . import routes_chat, routes_conversations, routes_map, routes_stats
-from .security import RateLimiter, SecurityMiddleware, limit_api, require_api_key
+from . import routes_auth, routes_chat, routes_conversations, routes_map, routes_stats
+from .auth import SessionSigner
+from .security import RateLimiter, SecurityMiddleware, limit_api, require_auth
 
 log = logging.getLogger(__name__)
 
@@ -64,7 +66,8 @@ def create_app(
             extra={"fields": {
                 "model": settings.llm_model,
                 "memory_window_turns": settings.memory_window_turns,
-                "auth": bool(settings.api_key_list),
+                "api_keys": bool(settings.api_key_list),
+                "login_users": len(settings.auth_user_map),
             }},
         )
         try:
@@ -87,6 +90,13 @@ def create_app(
     app.state.settings = settings
     app.state.api_limiter = RateLimiter(settings.rate_limit_api_per_minute)
     app.state.chat_limiter = RateLimiter(settings.rate_limit_chat_per_minute)
+    app.state.login_limiter = RateLimiter(settings.rate_limit_login_per_minute)
+    session_secret = settings.session_secret
+    if not session_secret:
+        session_secret = secrets.token_urlsafe(32)
+        if settings.auth_user_map:
+            log.warning("SESSION_SECRET trống: dùng khoá ngẫu nhiên, mọi phiên đăng nhập mất khi khởi động lại")
+    app.state.session_signer = SessionSigner(session_secret, int(settings.session_ttl_hours * 3600))
 
     # Thứ tự: middleware thêm sau nằm ngoài cùng
     app.add_middleware(GZipMiddleware, minimum_size=1024)
@@ -103,9 +113,10 @@ def create_app(
     if settings.metrics_enabled:
         app.add_middleware(MetricsMiddleware)
 
-    protected = [Depends(require_api_key), Depends(limit_api)]
+    protected = [Depends(require_auth), Depends(limit_api)]
+    app.include_router(routes_auth.router)
     app.include_router(routes_conversations.router, dependencies=protected)
-    app.include_router(routes_chat.router, dependencies=[Depends(require_api_key)])
+    app.include_router(routes_chat.router, dependencies=[Depends(require_auth)])
     app.include_router(routes_map.router, dependencies=protected)
     if settings.stats_enabled:
         app.include_router(routes_stats.router, dependencies=protected)
@@ -128,7 +139,8 @@ def create_app(
             "knowledge_chunks": kb_chunks,
             "model": settings.llm_model,
             "memory_window_turns": settings.memory_window_turns,
-            "auth_required": bool(settings.api_key_list),
+            "auth_required": settings.auth_enabled,
+            "login_enabled": bool(settings.auth_user_map),
         }
 
     if settings.metrics_enabled:
