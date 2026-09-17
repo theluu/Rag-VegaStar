@@ -2,10 +2,12 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { ChatPanel } from './components/ChatPanel'
 import { ConversationList, type AppView } from './components/ConversationList'
 import { LayerPanel } from './components/LayerPanel'
-import { Icon } from './components/Icon'
+import { Icon, Spinner } from './components/Icon'
+import { LoginScreen } from './components/LoginScreen'
 import { MapView, type MapLayer } from './components/MapView'
 import { StatsView } from './components/StatsView'
-import { api, streamChat, type Conversation, type MapDataRef } from './lib/api'
+import { api, streamChat, type Conversation, type Health, type MapDataRef } from './lib/api'
+import { clearSession, loadSession, onSessionChange, type Session } from './lib/session'
 import { layerMeta } from './lib/layers'
 import { buildTurns, type Turn } from './lib/transcript'
 
@@ -17,7 +19,65 @@ type MobileView = 'chat' | 'map'
 const STATS_HASH = '#/thong-ke'
 const viewFromHash = (): AppView => (window.location.hash === STATS_HASH ? 'stats' : 'chat')
 
+type HealthState = { status: 'loading' } | { status: 'ready'; health: Health } | { status: 'offline' }
+
+/** Kiểm tra máy chủ có bật đăng nhập không; nếu có thì bắt đăng nhập trước khi vào ứng dụng. */
 export default function App() {
+  const [session, setSession] = useState<Session | null>(() => loadSession())
+  const [server, setServer] = useState<HealthState>({ status: 'loading' })
+  const [notice, setNotice] = useState<string | null>(null)
+  const loggingOut = useRef(false)
+
+  useEffect(() => {
+    const controller = new AbortController()
+    api
+      .health(controller.signal)
+      .then((health) => setServer({ status: 'ready', health }))
+      .catch(() => {
+        if (!controller.signal.aborted) setServer({ status: 'offline' })
+      })
+    return () => controller.abort()
+  }, [])
+
+  useEffect(
+    () =>
+      onSessionChange((next) => {
+        // Phiên mất mà không phải do bấm Đăng xuất → token hết hạn hoặc bị từ chối
+        const expired = !next && !loggingOut.current
+        loggingOut.current = false
+        setNotice(expired ? 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.' : null)
+        setSession(next)
+      }),
+    [],
+  )
+
+  const logout = useCallback(() => {
+    loggingOut.current = true
+    clearSession()
+  }, [])
+
+  if (server.status === 'loading') {
+    return (
+      <div className="boot" role="status">
+        <Spinner size={22} />
+        Đang kết nối máy chủ…
+      </div>
+    )
+  }
+
+  const loginRequired = server.status === 'ready' && server.health.login_enabled
+  if (loginRequired && !session) return <LoginScreen notice={notice} />
+
+  return (
+    <Workspace
+      key={session?.username ?? 'guest'}
+      username={loginRequired ? session?.username : null}
+      onLogout={loginRequired ? logout : undefined}
+    />
+  )
+}
+
+function Workspace({ username, onLogout }: { username?: string | null; onLogout?: () => void }) {
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
   const [turns, setTurns] = useState<Turn[]>([])
@@ -31,6 +91,9 @@ export default function App() {
   const [mobileView, setMobileView] = useState<MobileView>('chat')
   const [view, setView] = useState<AppView>(viewFromHash)
   const abortRef = useRef<AbortController | null>(null)
+
+  // Đăng xuất hoặc hết phiên: dừng câu trả lời đang stream
+  useEffect(() => () => abortRef.current?.abort(), [])
 
   const refreshList = useCallback(async () => {
     try {
@@ -238,6 +301,8 @@ export default function App() {
         onSelect={(id) => void openConversation(id)}
         onCreate={startNew}
         onDelete={(id) => void deleteConversation(id)}
+        username={username}
+        onLogout={onLogout}
       />
       {railOpen && (
         <button type="button" className="scrim" onClick={() => setRailOpen(false)} aria-label="Đóng danh sách hội thoại" />

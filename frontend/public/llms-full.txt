@@ -33,4 +33,4 @@ Hỏi: MMSI và IMO khác nhau thế nào? — Đáp: MMSI gồm 9 chữ số nh
 Hỏi: Thời gian dùng múi giờ nào? — Đáp: UTC.
 
 ## API
-HTTP API có tài liệu OpenAPI: tạo và quản lý hội thoại, gửi câu hỏi nhận luồng Server-Sent Events (sự kiện token, tool_call, tool_result, evidence, verification, guardrail, data, error, done), lấy GeoJSON bản đồ và truy vấn nhiều hành trình có phân trang.
+HTTP API có tài liệu OpenAPI: tạo và quản lý hội thoại, gửi câu hỏi nhận luồng Server-Sent Events (sự kiện token, tool_call, tool_result, evidence, verification, guardrail, data, error, done), lấy GeoJSON bản đồ và truy vấn nhiều hành trình có phân trang. Môi trường triển khai yêu cầu đăng nhập (POST /auth/login trả token Bearer); chỉ /health công khai.

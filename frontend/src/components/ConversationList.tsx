@@ -13,6 +13,8 @@ interface Props {
   onSelect: (id: string) => void
   onCreate: () => void
   onDelete: (id: string) => void
+  username?: string | null
+  onLogout?: () => void
 }
 
 const timeFmt = new Intl.DateTimeFormat('vi-VN', { hour: '2-digit', minute: '2-digit' })
@@ -27,7 +29,18 @@ function dayLabel(d: Date): string {
   return dayFmt.format(d)
 }
 
-export function ConversationList({ view, onViewChange, conversations, activeId, apiOnline, onSelect, onCreate, onDelete }: Props) {
+export function ConversationList({
+  view,
+  onViewChange,
+  conversations,
+  activeId,
+  apiOnline,
+  onSelect,
+  onCreate,
+  onDelete,
+  username,
+  onLogout,
+}: Props) {
   const [query, setQuery] = useState('')
   const [confirming, setConfirming] = useState<string | null>(null)
 
@@ -125,8 +138,24 @@ export function ConversationList({ view, onViewChange, conversations, activeId, 
       </div>
 
       <footer className="rail-foot">
-        <span className={`status-dot ${apiOnline ? 'online' : 'offline'}`} aria-hidden />
-        {apiOnline ? 'Đã kết nối dữ liệu AIS 10–12/09/2026' : 'Chưa kết nối được API'}
+        <span className="rail-status">
+          <span className={`status-dot ${apiOnline ? 'online' : 'offline'}`} aria-hidden />
+          {apiOnline ? 'Đã kết nối dữ liệu AIS 10–12/09/2026' : 'Chưa kết nối được API'}
+        </span>
+        {username && onLogout && (
+          <span className="rail-user">
+            <span className="rail-avatar" aria-hidden>
+              <Icon name="user" size={15} />
+            </span>
+            <span className="rail-username" title={username}>
+              {username}
+            </span>
+            <button type="button" className="logout-button" onClick={onLogout}>
+              <Icon name="logout" size={15} />
+              Đăng xuất
+            </button>
+          </span>
+        )}
       </footer>
     </nav>
   )

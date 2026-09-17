@@ -1,4 +1,5 @@
 import type { FeatureCollection } from 'geojson'
+import { clearSession, currentToken, type Session } from './session'
 import { SseParser } from './sse'
 
 export const API_BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? ''
@@ -6,7 +7,33 @@ export const API_BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined
 const API_KEY = import.meta.env.VITE_API_KEY as string | undefined
 
 function authHeaders(): Record<string, string> {
+  const token = currentToken()
+  if (token) return { Authorization: `Bearer ${token}` }
   return API_KEY ? { 'X-API-Key': API_KEY } : {}
+}
+
+export class ApiError extends Error {
+  readonly status: number
+
+  constructor(status: number, message: string) {
+    super(message)
+    this.status = status
+  }
+}
+
+/** Token hết hạn hoặc bị thu hồi → xoá phiên để giao diện quay về màn hình đăng nhập. */
+function handleUnauthorized(status: number) {
+  if (status === 401 && currentToken()) clearSession()
+}
+
+export interface Health {
+  status: string
+  vessels: number
+  knowledge_chunks: number
+  model: string
+  memory_window_turns: number
+  auth_required: boolean
+  login_enabled: boolean
 }
 
 export interface EvidenceFact {
@@ -259,13 +286,27 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     headers: { 'Content-Type': 'application/json', ...authHeaders(), ...(init?.headers ?? {}) },
   })
   if (!res.ok) {
+    handleUnauthorized(res.status)
     const body = await res.text()
-    throw new Error(`${res.status} ${res.statusText}: ${body.slice(0, 200)}`)
+    let detail = body.slice(0, 200)
+    try {
+      const parsed = JSON.parse(body) as { detail?: unknown }
+      if (typeof parsed.detail === 'string') detail = parsed.detail
+    } catch {
+      // giữ nguyên nội dung thô
+    }
+    throw new ApiError(res.status, `${res.status}: ${detail}`)
   }
   return (res.status === 204 ? undefined : await res.json()) as T
 }
 
 export const api = {
+  health: (signal?: AbortSignal) => request<Health>('/health', { signal }),
+  login: (username: string, password: string) =>
+    request<Session & { token_type: string }>('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ username, password }),
+    }),
   listConversations: () => request<Conversation[]>('/conversations'),
   createConversation: () => request<Conversation>('/conversations', { method: 'POST', body: '{}' }),
   deleteConversation: (id: string) => request<void>(`/conversations/${id}`, { method: 'DELETE' }),
@@ -292,7 +333,8 @@ export async function streamChat(
     throw new Error('Bạn hỏi hơi nhanh, vui lòng đợi vài giây rồi thử lại.')
   }
   if (res.status === 401) {
-    throw new Error('API yêu cầu khoá truy cập (VITE_API_KEY).')
+    handleUnauthorized(401)
+    throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.')
   }
   if (!res.ok || !res.body) {
     throw new Error(`Không gửi được câu hỏi (${res.status})`)
