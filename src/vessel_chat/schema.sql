@@ -114,8 +114,9 @@ CREATE TABLE IF NOT EXISTS memory_chunks (
     created_at      timestamptz NOT NULL DEFAULT now(),
     UNIQUE (conversation_id, turn_no)
 );
-CREATE INDEX IF NOT EXISTS memory_conv_idx ON memory_chunks (conversation_id, turn_no);
-CREATE INDEX IF NOT EXISTS memory_embedding_idx ON memory_chunks USING hnsw (embedding vector_cosine_ops);
+-- Truy xuất luôn lọc theo một hội thoại → quét chính xác trên tập nhỏ (xem docs/architecture.md).
+-- Khi cần tìm ký ức xuyên hội thoại ở quy mô lớn: thêm HNSW (vector_cosine_ops) + hnsw.iterative_scan.
+DROP INDEX IF EXISTS memory_embedding_idx;
 
 CREATE TABLE IF NOT EXISTS map_data (
     id              uuid PRIMARY KEY,

@@ -8,6 +8,7 @@ dependencies = [
     "uvicorn[standard]>=0.30",
     "asyncpg>=0.30",
     "pgvector>=0.3",
+    "numpy>=1.26",
     "pydantic>=2.8",
     "pydantic-settings>=2.4",
     "sse-starlette>=2.1",
