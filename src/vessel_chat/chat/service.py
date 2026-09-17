@@ -9,10 +9,12 @@ from collections.abc import AsyncIterator
 import asyncpg
 
 from ..config import Settings
+from ..guardrails.input import INJECTION_NOTICE, Moderator, check_input
+from ..guardrails.output import OutputGuard, find_ungrounded_numbers, source_numbers
 from ..llm.client import Embedder, LLMClient
 from ..llm.prompts import SYSTEM_PROMPT
 from ..memory.manager import MemoryManager
-from ..observability import CHAT_DURATION, CHAT_TTFT, CHAT_TURNS, LLM_COST, LLM_TOKENS, log_event
+from ..observability import CHAT_DURATION, CHAT_TTFT, CHAT_TURNS, GUARDRAIL_EVENTS, LLM_COST, LLM_TOKENS, log_event
 from ..repositories import conversations as conv_repo
 from ..repositories import map_data as map_repo
 from ..timeutil import iso
@@ -62,6 +64,17 @@ def _short_summary(result: ToolResult) -> dict:
     return out
 
 
+def _guardrail_event(stage: str, action: str, kind: str, message: str, **extra) -> Event:
+    GUARDRAIL_EVENTS.labels(stage, kind, action).inc()
+    return Event("guardrail", {"stage": stage, "action": action, "kind": kind, "message": message, **extra})
+
+
+_OUTPUT_EVENT_TEXT = {
+    "secret": "Đã ẩn chuỗi trông giống thông tin bí mật trong câu trả lời.",
+    "system_prompt_leak": "Đã chặn việc lặp lại chỉ dẫn nội bộ của hệ thống.",
+}
+
+
 def _parse_args(raw: str):
     try:
         return json.loads(raw or "{}")
@@ -78,9 +91,12 @@ class ChatService:
         settings: Settings,
         system_prompt: str,
         tool_pool: asyncpg.Pool | None = None,
+        moderator: Moderator | None = None,
     ):
         self.pool = pool
         self.tool_pool = tool_pool or pool
+        self.moderator = moderator
+        self.system_prompt = system_prompt
         self.tool_cache = ToolCache(settings.tool_cache_ttl_seconds, settings.tool_cache_max_entries)
         self.llm = llm
         self.settings = settings
@@ -146,7 +162,32 @@ class ChatService:
         answer = ""
         message_id = None
         data_ids: list[str] = []
+        guard_log: list[dict] = []
         usage_total = {"prompt_tokens": 0, "completion_tokens": 0}
+
+        # ---- Guardrail đầu vào: chặn trước khi tốn một lần gọi LLM
+        verdict = await check_input(text, s, self.moderator)
+        if verdict.action == "block":
+            guard_log.append({"stage": "input", "action": "block", "kind": verdict.kind, "reasons": verdict.reasons})
+            yield _guardrail_event("input", "block", verdict.kind, "Yêu cầu bị chặn bởi guardrail đầu vào.",
+                                   reasons=verdict.reasons)
+            yield Event("token", {"text": verdict.message})
+            message_id = await self._save(conv_id, turn, "assistant", verdict.message, meta={"guardrail": guard_log})
+            self.memory.schedule_after_turn(conv_id, turn)
+            self._record_turn(conv_id, turn, "blocked", started, time.perf_counter(), [], usage_total)
+            yield Event("done", {"message_id": message_id, "turn": turn, "usage": usage_total, "data_ids": []})
+            return
+
+        guard = OutputGuard(self.system_prompt)
+        seen_guard_events = 0
+
+        def drain_guard_events():
+            nonlocal seen_guard_events
+            for e in guard.events[seen_guard_events:]:
+                guard_log.append({"stage": "output", "action": "redact", **e})
+                yield _guardrail_event("output", "redact", e["kind"], _OUTPUT_EVENT_TEXT.get(e["kind"], ""))
+            seen_guard_events = len(guard.events)
+
         try:
             ctx = await self.memory.build_context(conv_id, text, turn)
             if s.debug_memory_events:
@@ -157,6 +198,12 @@ class ChatService:
                                   for r in ctx.retrieved],
                 })
             messages = ctx.messages
+            if verdict.action == "warn":
+                messages.insert(len(messages) - 1, {"role": "system", "content": INJECTION_NOTICE})
+                guard_log.append({"stage": "input", "action": "warn", "kind": verdict.kind, "reasons": verdict.reasons})
+                yield _guardrail_event("input", "warn", verdict.kind,
+                                       "Tin nhắn có dấu hiệu thay đổi chỉ dẫn; trợ lý vẫn tuân thủ quy tắc hệ thống.",
+                                       reasons=verdict.reasons)
 
             for iteration in range(s.max_tool_iterations + 1):
                 # Vòng cuối không đưa tool → buộc model trả lời bằng dữ liệu đã có
@@ -164,15 +211,27 @@ class ChatService:
                 answer, calls = "", []
                 async for ev in self.llm.stream_chat(messages, tools):
                     if ev.type == "text":
-                        if first_token_at is None:
-                            first_token_at = time.perf_counter()
-                        answer += ev.text
-                        yield Event("token", {"text": ev.text})
+                        safe = guard.push(ev.text)
+                        for e in drain_guard_events():
+                            yield e
+                        if safe:
+                            if first_token_at is None:
+                                first_token_at = time.perf_counter()
+                            answer += safe
+                            yield Event("token", {"text": safe})
                     elif ev.type == "tool_calls":
                         calls = ev.tool_calls
                     elif ev.type == "done" and ev.usage:
                         for k in usage_total:
                             usage_total[k] += ev.usage.get(k) or 0
+                tail = guard.flush()
+                for e in drain_guard_events():
+                    yield e
+                if tail:
+                    if first_token_at is None:
+                        first_token_at = time.perf_counter()
+                    answer += tail
+                    yield Event("token", {"text": tail})
                 if not calls:
                     break
 
@@ -207,8 +266,23 @@ class ChatService:
                     async with self.pool.acquire() as conn:
                         await conv_repo.update_focus(conn, conv_id, focus)
 
-            message_id = await self._save(conv_id, turn, "assistant", answer,
-                                          meta={"data_ids": data_ids, "usage": usage_total})
+            # ---- Guardrail đầu ra: mọi con số phải truy được về dữ liệu đã có trong ngữ cảnh
+            if s.guardrail_grounding_enabled and answer and not guard.leaked:
+                sources = source_numbers([m["content"] for m in messages if isinstance(m.get("content"), str)])
+                ungrounded = find_ungrounded_numbers(answer, sources)
+                if ungrounded:
+                    guard_log.append({"stage": "output", "action": "warn", "kind": "ungrounded_numbers",
+                                      "numbers": ungrounded})
+                    yield _guardrail_event(
+                        "output", "warn", "ungrounded_numbers",
+                        "Kiểm tra tự động: một số con số không tìm thấy trong dữ liệu đã truy vấn.",
+                        numbers=ungrounded,
+                    )
+
+            meta = {"data_ids": data_ids, "usage": usage_total}
+            if guard_log:
+                meta["guardrail"] = guard_log
+            message_id = await self._save(conv_id, turn, "assistant", answer, meta=meta)
         except asyncio.CancelledError:
             log.info("Lượt %s của hội thoại %s bị huỷ (client ngắt kết nối)", turn, conv_id)
             CHAT_TURNS.labels("cancelled").inc()

@@ -119,3 +119,17 @@ class OpenAIEmbedder:
             dimensions=self.settings.embedding_dim,
         )
         return [d.embedding for d in resp.data]
+
+
+class OpenAIModerator:
+    """Kiểm duyệt nội dung đầu vào bằng OpenAI Moderation API (miễn phí)."""
+
+    def __init__(self, settings: Settings):
+        self.settings = settings
+        self.client = _client(settings)
+
+    async def moderate(self, text: str) -> tuple[bool, list[str]]:
+        resp = await self.client.moderations.create(model=self.settings.guardrail_moderation_model, input=text)
+        result = resp.results[0]
+        categories = [name for name, hit in result.categories.model_dump().items() if hit]
+        return bool(result.flagged), categories

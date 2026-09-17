@@ -15,7 +15,8 @@ from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from ..chat.service import ChatService, build_system_prompt
 from ..config import Settings, get_settings
 from ..db import create_pool
-from ..llm.client import Embedder, LLMClient, OpenAIEmbedder, OpenAILLM
+from ..guardrails.input import Moderator
+from ..llm.client import Embedder, LLMClient, OpenAIEmbedder, OpenAILLM, OpenAIModerator
 from ..observability import MetricsMiddleware, configure_logging
 from . import routes_chat, routes_conversations, routes_map
 from .security import RateLimiter, SecurityMiddleware, limit_api, require_api_key
@@ -23,7 +24,12 @@ from .security import RateLimiter, SecurityMiddleware, limit_api, require_api_ke
 log = logging.getLogger(__name__)
 
 
-def create_app(settings: Settings | None = None, llm: LLMClient | None = None, embedder: Embedder | None = None) -> FastAPI:
+def create_app(
+    settings: Settings | None = None,
+    llm: LLMClient | None = None,
+    embedder: Embedder | None = None,
+    moderator: Moderator | None = None,
+) -> FastAPI:
     settings = settings or get_settings()
 
     @asynccontextmanager
@@ -33,8 +39,13 @@ def create_app(settings: Settings | None = None, llm: LLMClient | None = None, e
         tool_pool = await create_pool(settings, readonly=True)
         chat_llm = llm or OpenAILLM(settings)
         chat_embedder = embedder or OpenAIEmbedder(settings)
+        # Moderation thật chỉ bật khi dùng LLM thật (test truyền LLM giả và moderator giả nếu cần)
+        chat_moderator = moderator
+        if chat_moderator is None and llm is None and settings.guardrail_moderation_enabled:
+            chat_moderator = OpenAIModerator(settings)
         system_prompt = await build_system_prompt(pool)
-        service = ChatService(pool, chat_llm, chat_embedder, settings, system_prompt, tool_pool=tool_pool)
+        service = ChatService(pool, chat_llm, chat_embedder, settings, system_prompt,
+                              tool_pool=tool_pool, moderator=chat_moderator)
         app.state.pool = pool
         app.state.tool_pool = tool_pool
         app.state.service = service
