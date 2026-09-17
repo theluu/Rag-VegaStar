@@ -1412,3 +1412,225 @@ button:disabled {
     transition: none;
   }
 }
+
+/* ============================ Chứng cứ & kiểm chứng ============================ */
+.cite {
+  display: inline-flex;
+  align-items: center;
+  margin: 0 1px;
+  padding: 0 6px;
+  height: 18px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--navy-900);
+  color: #fff;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  line-height: 1;
+  vertical-align: 0.15em;
+  letter-spacing: 0.02em;
+}
+
+.cite:hover {
+  background: var(--magenta);
+}
+
+.cite-inline {
+  margin-left: 6px;
+  vertical-align: 0.05em;
+}
+
+.evidence {
+  margin-top: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.evidence-bar:empty {
+  display: none;
+}
+
+.verify {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+}
+
+.verify-ok {
+  background: #e3f3ea;
+  color: #1f6b41;
+}
+
+.verify-warn {
+  background: var(--amber-50);
+  color: #8a5e00;
+}
+
+.evidence-details {
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--canvas);
+}
+
+.evidence-details summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  cursor: pointer;
+  list-style: none;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.evidence-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.evidence-chevron {
+  transition: transform 0.15s ease;
+}
+
+.evidence-details[open] .evidence-chevron {
+  transform: rotate(90deg);
+}
+
+.evidence-details ul {
+  list-style: none;
+  margin: 0;
+  padding: 0 8px 8px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+}
+
+.evidence-card {
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  scroll-margin: 80px;
+}
+
+.evidence-card.is-failed {
+  border-color: #f3c6c2;
+}
+
+.evidence-card.is-flash {
+  animation: flash 1.4s ease;
+}
+
+@keyframes flash {
+  0%,
+  40% {
+    box-shadow: 0 0 0 3px rgb(179 36 107 / 0.35);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgb(179 36 107 / 0);
+  }
+}
+
+.evidence-card header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-sm);
+}
+
+.evidence-id {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--navy-900);
+  color: #fff;
+  font-size: 0.6875rem;
+  font-weight: 700;
+}
+
+.evidence-icon {
+  display: inline-grid;
+  place-items: center;
+  color: var(--magenta);
+}
+
+.evidence-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 6px 0 4px;
+}
+
+.source-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--teal-50);
+  color: #146b6b;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+}
+
+.evidence-facts {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2px;
+  margin: 6px 0;
+  font-size: var(--fs-xs);
+}
+
+.evidence-facts div {
+  display: grid;
+  grid-template-columns: minmax(96px, 38%) minmax(0, 1fr);
+  gap: 8px;
+  padding: 3px 0;
+  border-bottom: 1px dashed var(--line);
+}
+
+.evidence-facts div:last-child {
+  border-bottom: 0;
+}
+
+.evidence-facts dt {
+  color: var(--ink-3);
+}
+
+.evidence-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+
+.evidence-card .link-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding-left: 0;
+}
+
+.guard-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 8px;
+  padding: 6px 10px;
+  border-radius: var(--r-sm);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+}
+
+.guard-block {
+  background: var(--danger-50);
+  color: var(--danger);
+}
+
+.guard-warn,
+.guard-redact {
+  background: var(--amber-50);
+  color: #8a5e00;
+}

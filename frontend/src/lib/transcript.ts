@@ -1,5 +1,5 @@
 import type { IconName } from '../components/Icon'
-import type { StoredMessage, ToolResultEvent } from './api'
+import type { Evidence, GuardrailNote, StoredMessage, ToolResultEvent, Verification } from './api'
 
 export interface ToolStep {
   id: string
@@ -7,6 +7,7 @@ export interface ToolStep {
   args: Record<string, unknown> | string
   ok?: boolean
   summary?: Record<string, unknown>
+  evidenceId?: string
 }
 
 export interface Turn {
@@ -15,6 +16,9 @@ export interface Turn {
   steps: ToolStep[]
   answer: string
   mapIds: string[]
+  evidence: Evidence[]
+  verification?: Verification
+  guardrails: GuardrailNote[]
   error?: string
   interrupted?: boolean
   pending?: boolean
@@ -46,7 +50,7 @@ export function buildTurns(messages: StoredMessage[]): Turn[] {
   for (const m of messages) {
     let turn = turns.get(m.turn_no)
     if (!turn) {
-      turn = { key: `t${m.turn_no}`, question: '', steps: [], answer: '', mapIds: [] }
+      turn = { key: `t${m.turn_no}`, question: '', steps: [], answer: '', mapIds: [], evidence: [], guardrails: [] }
       turns.set(m.turn_no, turn)
     }
     if (m.role === 'user') {
@@ -57,6 +61,15 @@ export function buildTurns(messages: StoredMessage[]): Turn[] {
       }
       if (m.content) turn.answer += m.content
       if (m.meta?.data_ids) turn.mapIds.push(...m.meta.data_ids)
+      if (m.meta?.evidence) {
+        turn.evidence.push(...m.meta.evidence)
+        // Chứng cứ theo đúng thứ tự các lần gọi tool của lượt
+        turn.steps.forEach((step, i) => {
+          step.evidenceId = turn!.evidence[i]?.id
+        })
+      }
+      if (m.meta?.verification) turn.verification = m.meta.verification
+      if (m.meta?.guardrail) turn.guardrails.push(...m.meta.guardrail)
       if (m.meta?.error) turn.error = `Không hoàn tất câu trả lời (${m.meta.error}).`
       if (m.meta?.interrupted) turn.interrupted = true
     } else if (m.role === 'tool') {
@@ -76,6 +89,7 @@ const TOOLS: Record<string, { label: string; icon: IconName }> = {
   get_track: { label: 'Dựng hành trình', icon: 'route' },
   get_dark_gaps: { label: 'Tra các lần mất tín hiệu', icon: 'signalOff' },
   get_multi_tracks: { label: 'Dựng nhiều hành trình', icon: 'fleet' },
+  search_knowledge: { label: 'Tra kho tri thức', icon: 'book' },
 }
 
 export function toolMeta(name: string): { label: string; icon: IconName } {
@@ -93,6 +107,7 @@ const ARG_LABELS: Record<string, string> = {
   end: 'Đến',
   order_by: 'Sắp xếp',
   exclude_vessel: 'Trừ tàu',
+  limit: 'Số lượng',
 }
 
 const VALUE_LABELS: Record<string, string> = {
@@ -127,4 +142,17 @@ export function argChips(args: ToolStep['args']): { label: string; value: string
   return Object.entries(args)
     .filter(([k, v]) => v !== null && v !== undefined && v !== '' && k in ARG_LABELS)
     .map(([k, v]) => ({ label: ARG_LABELS[k], value: formatValue(v) }))
+}
+
+const CITATION = /\[(E\d+(?:\s*,\s*E\d+)*)\]/g
+
+/** Đổi mã chứng cứ [E1, E2] trong câu trả lời thành liên kết nội bộ để hiển thị thành chip. */
+export function linkCitations(markdown: string): string {
+  return markdown.replace(CITATION, (_, group: string) =>
+    group
+      .split(',')
+      .map((id) => id.trim())
+      .map((id) => `[${id}](#evidence-${id})`)
+      .join(' '),
+  )
 }

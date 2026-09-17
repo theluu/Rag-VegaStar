@@ -2,6 +2,45 @@ import type { FeatureCollection } from 'geojson'
 import { SseParser } from './sse'
 
 export const API_BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? ''
+// Chỉ dùng khi API bật API_KEYS cho môi trường demo nội bộ; production nên đặt sau lớp xác thực phía server
+const API_KEY = import.meta.env.VITE_API_KEY as string | undefined
+
+function authHeaders(): Record<string, string> {
+  return API_KEY ? { 'X-API-Key': API_KEY } : {}
+}
+
+export interface EvidenceFact {
+  label: string
+  value: string
+}
+
+export interface Evidence {
+  id: string
+  tool: string
+  label: string
+  ok: boolean
+  query: Record<string, unknown> | string
+  sources: string[]
+  facts: EvidenceFact[]
+  data_ids: string[]
+}
+
+export interface Verification {
+  numbers_checked: number
+  ungrounded_numbers: string[]
+  citations: string[]
+  unknown_citations: string[]
+  evidence_count: number
+  grounded: boolean
+}
+
+export interface GuardrailNote {
+  stage: 'input' | 'output'
+  action: 'block' | 'warn' | 'redact'
+  kind: string
+  message?: string
+  numbers?: string[]
+}
 
 export interface Conversation {
   id: string
@@ -25,7 +64,14 @@ export interface StoredMessage {
   tool_calls: StoredToolCall[] | null
   tool_call_id: string | null
   tool_name: string | null
-  meta: { data_ids?: string[]; error?: string; interrupted?: boolean } | null
+  meta: {
+    data_ids?: string[]
+    error?: string
+    interrupted?: boolean
+    evidence?: Evidence[]
+    verification?: Verification
+    guardrail?: GuardrailNote[]
+  } | null
   created_at: string
 }
 
@@ -53,6 +99,7 @@ export interface ToolResultEvent {
   name: string
   ok: boolean
   summary: Record<string, unknown>
+  evidence_id?: string
 }
 
 export interface DataEvent {
@@ -75,6 +122,9 @@ export interface StreamHandlers {
   onToolResult: (e: ToolResultEvent) => void
   onData: (e: DataEvent) => void
   onMemory: (e: MemoryEvent) => void
+  onEvidence: (e: Evidence) => void
+  onVerification: (e: Verification) => void
+  onGuardrail: (e: GuardrailNote) => void
   onError: (e: { code: string; message: string }) => void
   onDone: () => void
 }
@@ -82,7 +132,7 @@ export interface StreamHandlers {
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
-    headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
+    headers: { 'Content-Type': 'application/json', ...authHeaders(), ...(init?.headers ?? {}) },
   })
   if (!res.ok) {
     const body = await res.text()
@@ -109,10 +159,16 @@ export async function streamChat(
 ): Promise<void> {
   const res = await fetch(`${API_BASE}/conversations/${conversationId}/chat`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
+    headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream', ...authHeaders() },
     body: JSON.stringify({ message }),
     signal,
   })
+  if (res.status === 429) {
+    throw new Error('Bạn hỏi hơi nhanh, vui lòng đợi vài giây rồi thử lại.')
+  }
+  if (res.status === 401) {
+    throw new Error('API yêu cầu khoá truy cập (VITE_API_KEY).')
+  }
   if (!res.ok || !res.body) {
     throw new Error(`Không gửi được câu hỏi (${res.status})`)
   }
@@ -137,6 +193,15 @@ export async function streamChat(
           break
         case 'memory':
           handlers.onMemory(data as MemoryEvent)
+          break
+        case 'evidence':
+          handlers.onEvidence(data as Evidence)
+          break
+        case 'verification':
+          handlers.onVerification(data as Verification)
+          break
+        case 'guardrail':
+          handlers.onGuardrail(data as GuardrailNote)
           break
         case 'error':
           handlers.onError(data as { code: string; message: string })

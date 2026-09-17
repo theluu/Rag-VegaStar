@@ -125,7 +125,10 @@ export default function App() {
       setStreaming(true)
       setTurns((prev) => [
         ...prev,
-        { key: `live-${Date.now()}`, question: text, steps: [], answer: '', mapIds: [], pending: true },
+        {
+          key: `live-${Date.now()}`, question: text, steps: [], answer: '', mapIds: [],
+          evidence: [], guardrails: [], pending: true,
+        },
       ])
       try {
         await streamChat(
@@ -143,7 +146,9 @@ export default function App() {
             onToolResult: (r) =>
               updateLast((turn) => ({
                 ...turn,
-                steps: turn.steps.map((s) => (s.id === r.id ? { ...s, ok: r.ok, summary: r.summary } : s)),
+                steps: turn.steps.map((s) =>
+                  s.id === r.id ? { ...s, ok: r.ok, summary: r.summary, evidenceId: r.evidence_id } : s,
+                ),
               })),
             onData: (d) => {
               updateLast((turn) => ({ ...turn, mapIds: [...turn.mapIds, d.data_id] }))
@@ -158,6 +163,9 @@ export default function App() {
                   recalled: m.retrieved.map((r) => ({ turn: r.turn_no, score: r.score })),
                 },
               })),
+            onEvidence: (ev) => updateLast((turn) => ({ ...turn, evidence: [...turn.evidence, ev] })),
+            onVerification: (v) => updateLast((turn) => ({ ...turn, verification: v })),
+            onGuardrail: (g) => updateLast((turn) => ({ ...turn, guardrails: [...turn.guardrails, g] })),
             onError: (e) => updateLast((turn) => ({ ...turn, error: e.message })),
             onDone: () => updateLast((turn) => ({ ...turn, pending: false })),
           },
