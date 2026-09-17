@@ -2,11 +2,38 @@
 
 - **Base URL:** `http://localhost:8000` (cổng đổi được qua `API_HOST_PORT`).
 - **Schema OpenAPI:** [openapi.json](openapi.json), hoặc giao diện tương tác tại `/docs` khi server đang chạy.
-- **Xác thực:** khi server bật `API_KEYS`, gửi `X-API-Key: <khoá>` hoặc `Authorization: Bearer <khoá>`; thiếu hoặc sai → 401. `/health`, `/metrics`, `/docs` luôn công khai.
+- **Xác thực:** khi server bật `AUTH_USERS`, đăng nhập qua `POST /auth/login` rồi gửi `Authorization: Bearer <token>`; khi bật `API_KEYS`, gửi `X-API-Key: <khoá>` hoặc `Authorization: Bearer <khoá>`. Thiếu hoặc sai → 401. `/health`, `/auth/login`, `/metrics`, `/docs` luôn công khai.
 - **Giới hạn:** vượt `RATE_LIMIT_API_PER_MINUTE` / `RATE_LIMIT_CHAT_PER_MINUTE` → 429 kèm `Retry-After`; body > `MAX_REQUEST_BYTES` → 413.
 - **Header:** mọi response có `X-Request-ID` (gửi kèm để nối log), cùng các header bảo mật. Response JSON lớn được nén gzip; SSE không nén.
 - **Lỗi 500:** chỉ trả `{"detail": "Lỗi hệ thống", "request_id": "…"}`; chi tiết nằm trong log.
 - **Định dạng:** mọi thời gian là UTC ISO-8601 (`2026-09-11T21:00:00Z`); tham số thời gian không có múi giờ được hiểu là UTC. Toạ độ GeoJSON theo thứ tự `[lon, lat]`.
+
+## Đăng nhập
+
+### `POST /auth/login`
+
+```bash
+curl -s -X POST localhost:8000/auth/login -H 'Content-Type: application/json' \
+  -d '{"username": "demo", "password": "demo"}'
+```
+
+```json
+{"username": "demo", "expires_at": "2026-09-17T22:30:00Z", "token": "v1.eyJ1Ijoi…", "token_type": "Bearer"}
+```
+
+| Mã | Khi nào |
+|---|---|
+| 200 | Đúng tài khoản; token hết hạn sau `SESSION_TTL_HOURS` |
+| 401 | Sai tên đăng nhập hoặc mật khẩu (thông báo chung) |
+| 404 | Server không bật đăng nhập (`AUTH_USERS` trống) |
+| 422 | Thiếu trường hoặc quá dài |
+| 429 | Vượt `RATE_LIMIT_LOGIN_PER_MINUTE` lần thử mỗi IP (có `Retry-After`) |
+
+Dùng token cho mọi yêu cầu khác: `-H "Authorization: Bearer $TOKEN"`. Token không hợp lệ, hết hạn hoặc ký bằng khoá khác → 401.
+
+### `GET /auth/me`
+
+Trả `{"username": "demo", "expires_at": "…"}` của token hiện tại (404 nếu đang dùng API key).
 
 ## Hội thoại
 
@@ -209,8 +236,10 @@ Trả FeatureCollection các lần mất tín hiệu, kèm `summary` (cùng nộ
 ### `GET /health`
 
 ```json
-{"status": "ok", "vessels": 1000, "knowledge_chunks": 31, "model": "gpt-4o-mini", "memory_window_turns": 6, "auth_required": false}
+{"status": "ok", "vessels": 1000, "knowledge_chunks": 31, "model": "gpt-4o-mini", "memory_window_turns": 6, "auth_required": true, "login_enabled": true}
 ```
+
+`login_enabled` cho giao diện biết có cần hiện form đăng nhập hay không.
 
 ### `GET /stats?range=7d`
 
@@ -239,4 +268,4 @@ Chi phí tính từ token đã lưu theo `PRICE_INPUT_PER_M` / `PRICE_OUTPUT_PER
 
 ### `GET /metrics`
 
-Định dạng Prometheus. Các chỉ số chính: `vc_http_requests_total{method,route,status}`, `vc_http_request_seconds`, `vc_chat_turns_total{outcome}`, `vc_chat_first_token_seconds`, `vc_chat_turn_seconds`, `vc_llm_tokens_total{kind}`, `vc_llm_cost_usd_total`, `vc_tool_calls_total{tool,ok,cache}`, `vc_tool_seconds{tool}`, `vc_guardrail_events_total{stage,kind,action}`, `vc_rate_limited_total{limiter}`, `vc_rag_queries_total{hits}`.
+Định dạng Prometheus. Các chỉ số chính: `vc_http_requests_total{method,route,status}`, `vc_http_request_seconds`, `vc_chat_turns_total{outcome}`, `vc_chat_first_token_seconds`, `vc_chat_turn_seconds`, `vc_llm_tokens_total{kind}`, `vc_llm_cost_usd_total`, `vc_tool_calls_total{tool,ok,cache}`, `vc_tool_seconds{tool}`, `vc_guardrail_events_total{stage,kind,action}`, `vc_rate_limited_total{limiter}`, `vc_auth_events_total{event}` (`login_ok`, `login_failed`, `rejected`), `vc_rag_queries_total{hits}`.

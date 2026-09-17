@@ -9,6 +9,7 @@ Chatbot LLM trả lời câu hỏi tiếng Việt về 1.000 tàu (AIS 10–12/0
 - **Guardrails.** Chặn prompt injection trước khi gọi LLM, kiểm duyệt nội dung, che secret và chặn lộ prompt ngay trên stream, từ chối chủ đề ngoài phạm vi.
 - **Bộ nhớ dài hạn.** Kết hợp trạng thái hội thoại, tóm tắt cuốn chiếu, truy xuất vector (pgvector) và cửa sổ nguyên văn cấu hình được.
 - **Harness đánh giá.** Câu hỏi sinh từ dữ liệu thật (đáp án bằng SQL) cùng các ca red-team; **42/42 ca đạt**.
+- **Đăng nhập.** Màn hình đăng nhập (tài khoản cấu hình trong `AUTH_USERS`, mặc định `demo` / `demo`); API chỉ phục vụ khi có token phiên hợp lệ.
 - **Bảo mật và vận hành.** API key, rate limit, header bảo mật và CSP, `/metrics` Prometheus, log JSON, cache kết quả tool, container không chạy root.
 - **Trang Thống kê vận hành.** Số lượt, tỉ lệ thành công, chi phí, độ trễ, công cụ, cache, guardrail, tỉ lệ trích chứng cứ, RAG, kết quả harness và quy mô dữ liệu; đọc từ cơ sở dữ liệu nên còn nguyên sau khi khởi động lại.
 - **Giao diện web + SEO/GEO.** Danh sách hội thoại, stream, thẻ chứng cứ, bản đồ MapLibre (vị trí, hành trình, mất tín hiệu, hàng chục nghìn điểm); Open Graph, JSON-LD, `llms.txt`.
@@ -26,7 +27,17 @@ Chatbot LLM trả lời câu hỏi tiếng Việt về 1.000 tàu (AIS 10–12/0
 </tr>
 </table>
 
-![Trang Thống kê vận hành: lượt hỏi đáp, chi phí, độ trễ, công cụ, guardrail, chất lượng câu trả lời](docs/images/ui-stats.png)
+<table>
+<tr>
+<td><img src="docs/images/ui-login.png" alt="Màn hình đăng nhập"></td>
+<td><img src="docs/images/ui-stats.png" alt="Trang Thống kê vận hành"></td>
+</tr>
+<tr>
+<td align="center">Đăng nhập trước khi dùng chatbot</td>
+<td align="center">Thống kê vận hành</td>
+</tr>
+</table>
+
 
 | Tài liệu | Nội dung |
 |---|---|
@@ -51,7 +62,7 @@ Chatbot LLM trả lời câu hỏi tiếng Việt về 1.000 tàu (AIS 10–12/0
 | N3 | ✅ | `GET /tracks` trả FeatureCollection nhiều tàu, có phân trang. Hỏi qua chat ("hành trình tất cả tàu do X khai thác", "toàn bộ tàu cargo ngày 11/09"): 484 tàu, 35,7 nghìn điểm vẽ bằng WebGL. LLM chỉ nhận bản tóm tắt. |
 | D1 | ✅ | README này, `.env.example` giải thích mọi biến, ví dụ `curl`. |
 | D2 | ✅ | `docs/research.md`, `docs/architecture.md`. |
-| D3 | ✅ | 178 test pytest (tầng truy vấn, tool, bộ nhớ, guardrail, RAG, chứng cứ, bảo mật, thống kê, tích hợp API) + 13 test frontend; `results/` chứa transcript kịch bản, đáp án SQL và báo cáo harness đánh giá. |
+| D3 | ✅ | 186 test pytest (tầng truy vấn, tool, bộ nhớ, guardrail, RAG, chứng cứ, bảo mật, đăng nhập, thống kê, tích hợp API) + 16 test frontend; `results/` chứa transcript kịch bản, đáp án SQL và báo cáo harness đánh giá. |
 
 ### Mở rộng cho sản phẩm AI
 
@@ -61,6 +72,7 @@ Chatbot LLM trả lời câu hỏi tiếng Việt về 1.000 tàu (AIS 10–12/0
 | Guardrails | Injection (VI/EN) và dữ liệu dán giả, moderation, phạm vi, che secret và lộ prompt trên stream, đối chiếu số liệu | `guardrails/`, [architecture §6](docs/architecture.md#6-guardrails) |
 | RAG | 8 tài liệu nghiệp vụ, ingest idempotent, hybrid search + RRF, trích dẫn | `knowledge/`, `rag/`, [architecture §8](docs/architecture.md#8-kho-tri-thức-rag) |
 | Harness | Sinh ca từ dữ liệu (seed), red-team, chấm xác định, báo cáo, ngưỡng CI | `evals/`, [results/eval_report.md](results/eval_report.md) |
+| Đăng nhập | Form đăng nhập, token phiên ký HMAC có hạn dùng, mật khẩu thường hoặc băm PBKDF2, giới hạn số lần thử, tự đăng xuất khi token hết hạn | `api/auth.py`, `api/routes_auth.py`, `frontend/src/components/LoginScreen.tsx` |
 | Security | API key, rate limit, header và CSP, giới hạn body, pool chỉ đọc, lỗi 500 an toàn, container không root | `api/security.py`, [SECURITY.md](SECURITY.md) |
 | Hiệu năng và quan sát | Cache tool, truy vấn LATERAL, gzip, ETag, `/metrics`, log JSON có chi phí | `tools/cache.py`, `observability.py` |
 | Thống kê vận hành | Telemetry từng lượt lưu trong DB; `GET /stats`; tab Thống kê (`#/thong-ke`) với KPI, biểu đồ theo ngày, công cụ, guardrail, chất lượng, lượt gần đây, harness | `api/routes_stats.py`, `repositories/stats.py`, `frontend/src/components/StatsView.tsx` |
@@ -84,14 +96,32 @@ docker compose run --rm api python scripts/load_data.py   # tạo schema + nạp
 
 Kho tri thức (`knowledge/`) được tự đồng bộ khi API khởi động (`RAG_AUTO_INGEST=true`), hoặc chạy thủ công: `docker compose run --rm api python scripts/ingest_knowledge.py`.
 
-- Giao diện: http://localhost:5173 (trang thống kê: http://localhost:5173/#/thong-ke)
+- Giao diện: http://localhost:5173, đăng nhập bằng tài khoản trong `AUTH_USERS` (mặc định **demo / demo**); trang thống kê: http://localhost:5173/#/thong-ke
 - API: http://localhost:8000 (tài liệu tương tác tại `/docs`, số liệu vận hành tại `/stats`)
 
 Nếu cổng bị chiếm, đổi `DB_HOST_PORT`, `API_HOST_PORT`, `WEB_HOST_PORT` trong `.env`. Khi đổi cổng API, sửa luôn `VITE_API_BASE_URL` và `CORS_ORIGINS` rồi build lại `web`.
 
 Để kiểm tra bộ nhớ dài hạn nhanh hơn, đặt `MEMORY_WINDOW_TURNS=2` trong `.env`, rồi chạy `docker compose up -d api`.
 
-**Bảo mật khi public:** đặt `API_KEYS` (và `VITE_API_KEY` nếu dùng giao diện demo), `CORS_ORIGINS`, `API_ORIGIN`, `VITE_SITE_URL` đúng tên miền, và chặn `/metrics`, `/docs` ở reverse proxy. Xem [SECURITY.md](SECURITY.md).
+## Đăng nhập
+
+Khi `AUTH_USERS` có giá trị, giao diện hiện form đăng nhập và **mọi API** (hội thoại, chat, bản đồ, thống kê) trả 401 nếu thiếu token. Chỉ `/health`, `/auth/login`, `/metrics`, `/docs` công khai.
+
+```dotenv
+AUTH_USERS=demo:demo                 # nhiều tài khoản: demo:demo,analyst:<mật khẩu>
+SESSION_SECRET=<chuỗi ngẫu nhiên dài>   # python -c "import secrets; print(secrets.token_urlsafe(32))"
+SESSION_TTL_HOURS=12
+RATE_LIMIT_LOGIN_PER_MINUTE=10
+```
+
+- Đăng nhập: `POST /auth/login` trả token phiên ký HMAC, giao diện lưu token và gửi `Authorization: Bearer …`. Hết hạn hoặc bị từ chối thì tự quay về form đăng nhập; nút **Đăng xuất** ở cuối thanh bên trái.
+- Không muốn để mật khẩu thường trong `.env`: chạy `python scripts/hash_password.py` rồi dùng chuỗi `pbkdf2_sha256$…` in ra (`AUTH_USERS=demo:pbkdf2_sha256$…`).
+- Đổi `SESSION_SECRET` thu hồi mọi phiên. Để trống thì API tự sinh khoá mỗi lần khởi động (người dùng phải đăng nhập lại).
+- `VITE_LOGIN_HINT` (tuỳ chọn) hiện một dòng gợi ý dưới form, ví dụ khi muốn cho người xem demo biết tài khoản.
+- Script và harness: đặt `API_USERNAME` / `API_PASSWORD` (hoặc `--username` / `--password`), hoặc dùng `API_KEY` cho tích hợp máy với máy.
+- Tắt đăng nhập (chạy cục bộ): để trống `AUTH_USERS` và `API_KEYS`.
+
+**Bảo mật khi public:** đổi mật khẩu `demo` hoặc dùng chuỗi băm, đặt `SESSION_SECRET`, `CORS_ORIGINS`, `API_ORIGIN`, `VITE_SITE_URL` đúng tên miền, bật HTTPS, và chặn `/metrics`, `/docs` ở reverse proxy. Xem [SECURITY.md](SECURITY.md).
 
 ## Chạy ngoài Docker (phát triển)
 
@@ -109,6 +139,7 @@ npm run dev                     # http://localhost:5173
 ## Xem stream trong terminal
 
 ```bash
+export API_USERNAME=demo API_PASSWORD=demo                                  # khi server bật đăng nhập
 scripts/stream_chat.sh "Cho tôi thông tin về tàu KOTA GAYA."                 # tạo hội thoại mới, in conversation_id
 scripts/stream_chat.sh "Chủ sở hữu của tàu này là ai?" <conversation_id>     # hỏi tiếp
 ```
@@ -116,9 +147,12 @@ scripts/stream_chat.sh "Chủ sở hữu của tàu này là ai?" <conversation_
 Hoặc dùng `curl` trực tiếp:
 
 ```bash
-CID=$(curl -s -X POST localhost:8000/conversations -H 'Content-Type: application/json' -d '{}' | python3 -c 'import sys,json;print(json.load(sys.stdin)["id"])')
+TOKEN=$(curl -s -X POST localhost:8000/auth/login -H 'Content-Type: application/json' \
+  -d '{"username":"demo","password":"demo"}' | python3 -c 'import sys,json;print(json.load(sys.stdin)["token"])')
+AUTH="Authorization: Bearer $TOKEN"
+CID=$(curl -s -X POST localhost:8000/conversations -H "$AUTH" -H 'Content-Type: application/json' -d '{}' | python3 -c 'import sys,json;print(json.load(sys.stdin)["id"])')
 curl -N -X POST localhost:8000/conversations/$CID/chat \
-  -H 'Content-Type: application/json' \
+  -H "$AUTH" -H 'Content-Type: application/json' \
   -d '{"message": "Tàu có MMSI 563240200 đã đi từ đâu đến đâu trong ngày 11/09/2026?"}'
 ```
 
@@ -165,14 +199,15 @@ Test dùng PostgreSQL thật: database `vessel_test` được container DB tạo
 
 ```bash
 docker compose up -d db
-.venv/bin/pytest -q              # 178 test: truy vấn, tool, bộ nhớ, guardrail, RAG, chứng cứ, bảo mật, thống kê, API/SSE
-cd frontend && npm test          # 13 test: bộ đọc SSE, dựng transcript, nhãn tham số, liên kết chứng cứ, định dạng thống kê
+.venv/bin/pytest -q              # 186 test: truy vấn, tool, bộ nhớ, guardrail, RAG, chứng cứ, bảo mật, đăng nhập, thống kê, API/SSE
+cd frontend && npm test          # 16 test: bộ đọc SSE, dựng transcript, nhãn tham số, liên kết chứng cứ, định dạng thống kê, phiên đăng nhập
 ```
 
 ## Harness đánh giá
 
 ```bash
 # API đang chạy; nên nâng RATE_LIMIT_CHAT_PER_MINUTE (vd. 120) cho lần chạy đánh giá
+export API_USERNAME=demo API_PASSWORD=demo                                     # khi server bật đăng nhập
 .venv/bin/python evals/generate.py --seed 7                                    # sinh ca từ dữ liệu (đáp án bằng SQL)
 .venv/bin/python evals/run.py --api-url http://localhost:8000 --min-pass-rate 0.85   # → results/eval_report.md
 .venv/bin/python evals/generate.py --seed 21 --out /tmp/cases.yaml && \
@@ -205,11 +240,11 @@ src/vessel_chat/
   llm/                   client OpenAI (chat, embedding, moderation) và prompt
   memory/manager.py      bộ nhớ kết hợp
   chat/                  vòng lặp LLM ↔ tool, chứng cứ, sự kiện
-  api/                   FastAPI, bảo mật (API key, rate limit, header), thống kê vận hành
+  api/                   FastAPI, đăng nhập (token phiên), bảo mật (API key, rate limit, header), thống kê vận hành
   observability.py       metrics Prometheus, log JSON
 knowledge/               tài liệu nghiệp vụ cho RAG
 evals/                   harness đánh giá (sinh ca, ca tĩnh/red-team, chấm điểm)
-scripts/                 load_data.py, ingest_knowledge.py, stream_chat.sh, run_scenarios.py, verify_facts.py
+scripts/                 load_data.py, ingest_knowledge.py, stream_chat.sh, run_scenarios.py, verify_facts.py, hash_password.py
 tests/                   unit + integration (+ fixtures)
 frontend/                React + Vite + MapLibre; public/ có robots, sitemap, llms.txt
 docs/                    research.md, architecture.md, api.md, openapi.json, images/
