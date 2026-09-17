@@ -287,3 +287,33 @@
     integers:
     - 126
     citations: true
+- id: gen-count-all
+  category: vessel_list
+  turns:
+  - Hệ thống có bao nhiêu tàu? Kể tên một vài tàu.
+  expect:
+    tools:
+    - list_vessels
+    integers:
+    - 1000
+    citations: true
+- id: gen-count-fishing
+  category: vessel_list
+  turns:
+  - Trong dữ liệu có bao nhiêu tàu cá?
+  expect:
+    tools:
+    - list_vessels
+    integers:
+    - 117
+    citations: true
+- id: gen-top-dwt
+  category: vessel_list
+  turns:
+  - Tàu nào có trọng tải (DWT) lớn nhất trong dữ liệu?
+  expect:
+    tools:
+    - list_vessels
+    contains:
+    - SEA BEIJING
+    citations: true

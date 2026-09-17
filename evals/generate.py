@@ -187,6 +187,26 @@ async def generate(conn, rng: random.Random, per: int) -> list[dict]:
         "turns": ["Vẽ hành trình của tất cả tàu chở dầu trong ngày 12/09/2026. Có bao nhiêu tàu có dữ liệu?"],
         "expect": {"tools": ["get_multi_tracks"], "integers": [tanker_day], "citations": True},
     })
+
+    # Đếm / liệt kê tàu (không dùng rng để các ca phía trên giữ nguyên với cùng seed)
+    total = await conn.fetchval("SELECT count(*) FROM vessels")
+    cases.append({
+        "id": "gen-count-all", "category": "vessel_list",
+        "turns": ["Hệ thống có bao nhiêu tàu? Kể tên một vài tàu."],
+        "expect": {"tools": ["list_vessels"], "integers": [total], "citations": True},
+    })
+    fishing = await conn.fetchval("SELECT count(*) FROM vessels WHERE ship_type_group = 'fishing'")
+    cases.append({
+        "id": "gen-count-fishing", "category": "vessel_list",
+        "turns": ["Trong dữ liệu có bao nhiêu tàu cá?"],
+        "expect": {"tools": ["list_vessels"], "integers": [fishing], "citations": True},
+    })
+    heaviest = await conn.fetchval("SELECT shipname FROM vessels ORDER BY dwt DESC NULLS LAST LIMIT 1")
+    cases.append({
+        "id": "gen-top-dwt", "category": "vessel_list",
+        "turns": ["Tàu nào có trọng tải (DWT) lớn nhất trong dữ liệu?"],
+        "expect": {"tools": ["list_vessels"], "contains": [heaviest], "citations": True},
+    })
     return cases
 
 
