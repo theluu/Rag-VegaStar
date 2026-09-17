@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     # --- Bộ nhớ hội thoại ---
     memory_window_turns: int = 6
     memory_window_max_tokens: int = 6000
+    memory_tool_result_max_chars: int = 2500
     memory_top_k: int = 4
     memory_min_score: float = 0.25
     memory_compaction_wait_seconds: float = 20.0
