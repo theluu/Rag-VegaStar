@@ -27,6 +27,7 @@ Chatbot LLM trả lời câu hỏi tiếng Việt về 1.000 tàu (AIS 10–12/0
 
 | Tài liệu | Nội dung |
 |---|---|
+| [docs/VegaStar-Tong-quan.pdf](docs/VegaStar-Tong-quan.pdf) | Tài liệu tổng quan 14 trang: yêu cầu, cách hoạt động, công nghệ, bảo mật, tối ưu, ứng dụng, mở rộng |
 | [docs/architecture.md](docs/architecture.md) | Kiến trúc, luồng xử lý, bộ nhớ, schema, tool, hạn chế, chi phí, hướng mở rộng |
 | [docs/research.md](docs/research.md) | Lựa chọn LLM, embedding, vector DB, framework; so sánh các chiến lược bộ nhớ |
 | [docs/api.md](docs/api.md) · [docs/openapi.json](docs/openapi.json) | Các endpoint và sự kiện SSE, kèm ví dụ `curl` |
