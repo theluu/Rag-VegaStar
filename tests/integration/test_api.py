@@ -111,8 +111,12 @@ async def test_tool_flow_emits_structured_events_and_map_data(client):
     assert events[i_result][1]["ok"] is True
     assert events[i_result][1]["summary"]["point_count"] == 24
 
-    geo = (await client.get(f"/map-data/{data['data_id']}")).json()
+    geo_resp = await client.get(f"/map-data/{data['data_id']}")
+    geo = geo_resp.json()
     assert geo["geojson"]["type"] == "FeatureCollection"
+    assert "immutable" in geo_resp.headers["cache-control"]
+    again = await client.get(f"/map-data/{data['data_id']}", headers={"If-None-Match": geo_resp.headers["etag"]})
+    assert again.status_code == 304
     refs = (await client.get(f"/conversations/{cid}/map-data")).json()
     assert [r["id"] for r in refs] == [data["data_id"]]
 

@@ -17,6 +17,7 @@ from ..repositories import conversations as conv_repo
 from ..repositories import map_data as map_repo
 from ..timeutil import iso
 from ..tools import ToolContext, ToolResult, execute_tool, openai_tool_specs
+from ..tools.cache import ToolCache
 from .events import Event
 
 log = logging.getLogger(__name__)
@@ -80,6 +81,7 @@ class ChatService:
     ):
         self.pool = pool
         self.tool_pool = tool_pool or pool
+        self.tool_cache = ToolCache(settings.tool_cache_ttl_seconds, settings.tool_cache_max_entries)
         self.llm = llm
         self.settings = settings
         self.memory = MemoryManager(pool, llm, embedder, settings, system_prompt)
@@ -183,7 +185,7 @@ class ChatService:
                 for c in calls:
                     yield Event("tool_call", {"id": c.id, "name": c.name, "args": _parse_args(c.arguments)})
 
-                tool_ctx = ToolContext(pool=self.tool_pool, settings=s, focus=dict(focus))
+                tool_ctx = ToolContext(pool=self.tool_pool, settings=s, focus=dict(focus), cache=self.tool_cache)
                 results = await asyncio.gather(*(execute_tool(tool_ctx, c.name, c.arguments) for c in calls))
                 for c, result in zip(calls, results):
                     content = dict(result.content)

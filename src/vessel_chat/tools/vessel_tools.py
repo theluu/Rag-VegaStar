@@ -122,6 +122,11 @@ class FindCompanyVessels(Tool):
         role: Role | None = Field(default=None, description="Chỉ lấy tàu mà công ty giữ vai trò này")
         exclude_vessel: str | None = Field(default=None, description="Tàu cần loại khỏi danh sách (vessel_id/tên/MMSI)")
 
+    def cache_key(self, ctx: ToolContext, args: Args) -> str | None:
+        # Kết quả đánh dấu tàu đang bàn → khoá phải gồm cả tàu đó
+        current = (ctx.focus.get("vessel") or {}).get("vessel_id", "")
+        return f"{super().cache_key(ctx, args)}|focus={current}"
+
     async def run(self, ctx: ToolContext, args: Args) -> ToolResult:
         max_rows = ctx.settings.tool_result_max_rows
         async with ctx.pool.acquire() as conn:

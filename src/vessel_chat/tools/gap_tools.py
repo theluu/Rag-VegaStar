@@ -1,10 +1,8 @@
-from datetime import timedelta
 from typing import Literal
 
 from pydantic import BaseModel, Field
 
 from ..repositories import gaps as gap_repo
-from ..repositories import positions as pos_repo
 from ..timeutil import iso
 from .base import MapPayload, Tool, ToolContext, ToolResult, register
 from .common import (
@@ -25,11 +23,10 @@ def _pos(lat, lon):
     return None if lat is None else {"lat": round(lat, 5), "lon": round(lon, 5)}
 
 
-def _speed(p):
-    if p is None:
+def _speed(ts, speed, status):
+    if ts is None:
         return None
-    return {"ts": iso(p.ts), "speed_knots": None if p.speed is None else round(p.speed, 1),
-            "nav_status": p.nav_status or None}
+    return {"ts": iso(ts), "speed_knots": None if speed is None else round(speed, 1), "nav_status": status or None}
 
 
 @register
@@ -64,25 +61,23 @@ class GetDarkGaps(Tool):
             vid = v["vessel_id"] if v else None
             rows = await gap_repo.list_gaps(conn, vid, start, end, order_by=args.order_by, limit=limit)
             total = await gap_repo.count_gaps(conn, vid, start, end)
-            gaps = []
-            for g in rows:
-                before, _ = await pos_repo.nearest_positions(conn, g["vessel_id"], g["gap_start_ts"])
-                after = await pos_repo.first_at_or_after(conn, g["vessel_id"], g["gap_end_ts"] - timedelta(seconds=1))
-                gaps.append({
-                    "gap_id": g["gap_id"],
-                    "vessel": vessel_brief(g),
-                    "gap_start_ts": iso(g["gap_start_ts"]),
-                    "gap_end_ts": iso(g["gap_end_ts"]),
-                    "duration_seconds": g["gap_duration_seconds"],
-                    "duration_hours": round(g["gap_duration_seconds"] / 3600, 2),
-                    "duration_text": fmt_duration(g["gap_duration_seconds"]),
-                    "start_position": _pos(g["start_lat"], g["start_lon"]),
-                    "end_position": _pos(g["end_lat"], g["end_lon"]),
-                    "straight_distance_nm": None if g["distance_nm"] is None else round(g["distance_nm"], 2),
-                    "implied_speed_knots": None if g["implied_speed_knots"] is None else round(g["implied_speed_knots"], 2),
-                    "speed_before_gap": _speed(before),
-                    "speed_after_gap": _speed(after),
-                })
+        gaps = []
+        for g in rows:
+            gaps.append({
+                "gap_id": g["gap_id"],
+                "vessel": vessel_brief(g),
+                "gap_start_ts": iso(g["gap_start_ts"]),
+                "gap_end_ts": iso(g["gap_end_ts"]),
+                "duration_seconds": g["gap_duration_seconds"],
+                "duration_hours": round(g["gap_duration_seconds"] / 3600, 2),
+                "duration_text": fmt_duration(g["gap_duration_seconds"]),
+                "start_position": _pos(g["start_lat"], g["start_lon"]),
+                "end_position": _pos(g["end_lat"], g["end_lon"]),
+                "straight_distance_nm": None if g["distance_nm"] is None else round(g["distance_nm"], 2),
+                "implied_speed_knots": None if g["implied_speed_knots"] is None else round(g["implied_speed_knots"], 2),
+                "speed_before_gap": _speed(g["before_ts"], g["before_speed"], g["before_status"]),
+                "speed_after_gap": _speed(g["after_ts"], g["after_speed"], g["after_status"]),
+            })
 
         content = {
             "status": "ok",

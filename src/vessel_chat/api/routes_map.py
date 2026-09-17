@@ -5,7 +5,9 @@ from typing import Annotated
 from uuid import UUID
 
 import asyncpg
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import JSONResponse
 
 from ..config import Settings
 from ..repositories import map_data as map_repo
@@ -20,13 +22,20 @@ from .deps import get_app_settings, get_pool, get_tool_pool
 router = APIRouter(tags=["map"])
 
 
+# Dữ liệu bản đồ không bao giờ thay đổi sau khi tạo → cache phía client theo id
+MAP_DATA_CACHE = "private, max-age=86400, immutable"
+
+
 @router.get("/map-data/{data_id}")
-async def get_map_data(data_id: UUID, pool: asyncpg.Pool = Depends(get_pool)):
+async def get_map_data(data_id: UUID, request: Request, pool: asyncpg.Pool = Depends(get_pool)):
+    etag = f'"{data_id}"'
+    if request.headers.get("if-none-match") == etag:
+        return Response(status_code=304, headers={"ETag": etag, "Cache-Control": MAP_DATA_CACHE})
     async with pool.acquire() as conn:
         item = await map_repo.get_map_data(conn, str(data_id))
     if item is None:
         raise HTTPException(status_code=404, detail="Không có dữ liệu bản đồ này")
-    return item
+    return JSONResponse(jsonable_encoder(item), headers={"ETag": etag, "Cache-Control": MAP_DATA_CACHE})
 
 
 @router.get("/vessels/search", tags=["vessels"])

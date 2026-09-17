@@ -5,13 +5,16 @@ import json
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import asyncpg
 from pydantic import BaseModel, ValidationError
 
 from ..config import Settings
 from ..observability import TOOL_CALLS, TOOL_LATENCY
+
+if TYPE_CHECKING:
+    from .cache import ToolCache
 
 log = logging.getLogger(__name__)
 
@@ -42,6 +45,7 @@ class ToolContext:
     pool: asyncpg.Pool
     settings: Settings
     focus: dict = field(default_factory=dict)  # "đối tượng đang bàn" của hội thoại (chỉ đọc)
+    cache: "ToolCache | None" = None
 
 
 class ToolInputError(Exception):
@@ -55,6 +59,10 @@ class Tool:
 
     async def run(self, ctx: ToolContext, args: BaseModel) -> ToolResult:  # pragma: no cover
         raise NotImplementedError
+
+    def cache_key(self, ctx: ToolContext, args: BaseModel) -> str | None:
+        """Khoá cache từ tham số đã chuẩn hoá; None = không cache."""
+        return self.name + ":" + json.dumps(args.model_dump(mode="json"), sort_keys=True, ensure_ascii=False)
 
 
 REGISTRY: dict[str, Tool] = {}
@@ -94,14 +102,42 @@ def error_result(message: str, **extra) -> ToolResult:
 async def execute_tool(ctx: ToolContext, name: str, raw_args: str | None) -> ToolResult:
     """Chạy tool theo tên; mọi lỗi được chuyển thành kết quả {"error": ...} cho LLM tự xử lý."""
     started = time.perf_counter()
-    result = await _execute(ctx, name, raw_args)
+    result, cache_state = await _execute(ctx, name, raw_args)
     label = name if name in REGISTRY else "unknown"
     TOOL_LATENCY.labels(label).observe(time.perf_counter() - started)
-    TOOL_CALLS.labels(label, str(result.ok).lower(), "miss").inc()
+    TOOL_CALLS.labels(label, str(result.ok).lower(), cache_state).inc()
     return result
 
 
-async def _execute(ctx: ToolContext, name: str, raw_args: str | None) -> ToolResult:
+async def _execute(ctx: ToolContext, name: str, raw_args: str | None) -> tuple[ToolResult, str]:
+    """Trả (kết quả, trạng thái cache: none | hit | miss)."""
+    cached, key = _lookup(ctx, name, raw_args)
+    if cached is not None:
+        return cached, "hit"
+    result = await _call(ctx, name, raw_args)
+    if key is None:
+        return result, "none"
+    if result.ok:
+        ctx.cache.put(key, result)
+    return result, "miss"
+
+
+def _lookup(ctx: ToolContext, name: str, raw_args: str | None) -> tuple[ToolResult | None, str | None]:
+    """Tra cache; trả (kết quả từ cache hoặc None, khoá cache hoặc None nếu không cache được)."""
+    tool = REGISTRY.get(name)
+    if tool is None or ctx.cache is None or not ctx.cache.enabled:
+        return None, None
+    try:
+        args = tool.Args.model_validate(json.loads(raw_args or "{}"))
+    except (json.JSONDecodeError, ValidationError):
+        return None, None
+    key = tool.cache_key(ctx, args)
+    if key is None:
+        return None, None
+    return ctx.cache.get(key), key
+
+
+async def _call(ctx: ToolContext, name: str, raw_args: str | None) -> ToolResult:
     tool = REGISTRY.get(name)
     if tool is None:
         return error_result(f"Tool không tồn tại: {name}")
