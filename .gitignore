@@ -11,3 +11,5 @@ node_modules/
 frontend/dist/
 .coverage
 *.egg-info/
+.playwright-mcp/
+frontend/.env.local
