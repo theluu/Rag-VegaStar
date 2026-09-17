@@ -647,6 +647,48 @@
         }
       }
     },
+    "/stats": {
+      "get": {
+        "tags": [
+          "stats"
+        ],
+        "summary": "Get Stats",
+        "operationId": "get_stats_stats_get",
+        "parameters": [
+          {
+            "name": "range",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/StatsRange",
+              "description": "Khoảng thời gian: 24h, 7d, 30d, all",
+              "default": "7d"
+            },
+            "description": "Khoảng thời gian: 24h, 7d, 30d, all"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/health": {
       "get": {
         "tags": [
@@ -938,6 +980,16 @@
           "created_at"
         ],
         "title": "MessageOut"
+      },
+      "StatsRange": {
+        "type": "string",
+        "enum": [
+          "24h",
+          "7d",
+          "30d",
+          "all"
+        ],
+        "title": "StatsRange"
       },
       "ValidationError": {
         "properties": {

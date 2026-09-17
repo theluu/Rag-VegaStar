@@ -212,6 +212,31 @@ Trả FeatureCollection các lần mất tín hiệu, kèm `summary` (cùng nộ
 {"status": "ok", "vessels": 1000, "knowledge_chunks": 31, "model": "gpt-4o-mini", "memory_window_turns": 6, "auth_required": false}
 ```
 
+### `GET /stats?range=7d`
+
+Số liệu vận hành cho trang Thống kê. `range`: `24h`, `7d` (mặc định), `30d`, `all`. Dùng chung API key và rate limit với các route khác; tắt bằng `STATS_ENABLED=false`.
+
+```bash
+curl -s 'localhost:8000/stats?range=24h' | jq '.overview, .latency'
+```
+
+| Khối | Nội dung |
+|---|---|
+| `overview` | `turns`, `conversations`, `outcomes` (`ok`/`blocked`/`error`/`cancelled`), `success_rate`, token, `cost_usd`, `cost_per_turn_usd`, `tool_calls`, thời điểm lượt đầu/cuối |
+| `latency` | `ttft_p50`, `ttft_p95`, `duration_p50`, `duration_p95` (giây), `measured_turns` |
+| `daily` | Mỗi ngày (theo `STATS_TIMEZONE`): `turns`, `blocked`, `errors`, `cost_usd` |
+| `tools` | Mỗi tool: `calls`, `ok`, `success_rate`, `cache_hit_rate`, `ms_p50`, `ms_p95` |
+| `cache` | Tỉ lệ trúng cache và số mục đang cache |
+| `quality` | Câu trả lời đã kiểm chứng, khớp dữ liệu, có trích chứng cứ, số con số đã đối chiếu, số câu tự gắn chứng cứ |
+| `guardrails` | Đếm theo `stage`, `action`, `kind` |
+| `rag` | Lượt tra kho tri thức, số tài liệu/đoạn, ký ức vector, hội thoại đã tóm tắt |
+| `recent_turns` | 12 lượt gần nhất: câu hỏi, công cụ, kết quả, chứng cứ, độ trễ, token, chi phí |
+| `data` | Quy mô dữ liệu nguồn (tàu, điểm AIS, dark gap, công ty, nhóm loại tàu); cache `STATS_INVENTORY_TTL_SECONDS` |
+| `evaluation` | Tóm tắt `EVAL_REPORT_PATH` (tỉ lệ đạt theo nhóm, chi phí, độ trễ) hoặc `null` |
+| `runtime` | Mô hình, embedding, cửa sổ bộ nhớ, guardrail, xác thực, rate limit, giá token, thời điểm khởi động |
+
+Chi phí tính từ token đã lưu theo `PRICE_INPUT_PER_M` / `PRICE_OUTPUT_PER_M`.
+
 ### `GET /metrics`
 
 Định dạng Prometheus. Các chỉ số chính: `vc_http_requests_total{method,route,status}`, `vc_http_request_seconds`, `vc_chat_turns_total{outcome}`, `vc_chat_first_token_seconds`, `vc_chat_turn_seconds`, `vc_llm_tokens_total{kind}`, `vc_llm_cost_usd_total`, `vc_tool_calls_total{tool,ok,cache}`, `vc_tool_seconds{tool}`, `vc_guardrail_events_total{stage,kind,action}`, `vc_rate_limited_total{limiter}`, `vc_rag_queries_total{hits}`.

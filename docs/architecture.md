@@ -295,6 +295,7 @@ Mọi quyết định phát sự kiện `guardrail`, lưu trong `meta.guardrail`
 - **HTTP:** `SecurityMiddleware` (ASGI thuần, không ảnh hưởng stream): `X-Request-ID`, `nosniff`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`, CSP `default-src 'none'`, giới hạn body `MAX_REQUEST_BYTES`. Lỗi 500 chỉ trả thông điệp chung + `request_id`.
 - **Xác thực & giới hạn:** `API_KEYS` (X-API-Key / Bearer, so sánh hằng thời gian); token bucket riêng cho chat (`RATE_LIMIT_CHAT_PER_MINUTE`) và API (`RATE_LIMIT_API_PER_MINUTE`), 429 + `Retry-After`.
 - **Dữ liệu:** pool riêng `default_transaction_read_only=on` cho tool và route dữ liệu tàu.
+- **Thống kê vận hành:** mỗi lượt lưu `meta.telemetry` (`outcome`, `ttft_s`, `duration_s`, token, `cost_usd`, và `tools[]` gồm `name`, `ok`, `cache`, `ms`). `GET /stats` tổng hợp từ bảng `messages` bằng SQL (`percentile_cont`, `jsonb_array_elements`) nên số liệu còn sau khi khởi động lại, khác bộ đếm Prometheus trong bộ nhớ; quy mô dữ liệu nguồn được cache trong tiến trình. Giao diện hiển thị ở tab Thống kê.
 - **Quan sát:** `/metrics` Prometheus (request theo route, TTFT, thời lượng lượt, token, chi phí, tool theo tên/ok/cache, guardrail, rate limit, RAG); log JSON một dòng mỗi lượt (`chat_turn`: tool, độ trễ, token, chi phí).
 - **Hiệu năng:** cache kết quả tool LRU+TTL (1000 tàu × 3 ngày: 2,1 s → 0,1 ms khi trúng cache); dark gap lấy tốc độ trước/sau bằng một truy vấn `LATERAL` (30 sự kiện: 81 ms, trước đây ~60 truy vấn); gzip (SSE không nén); `/map-data` có `ETag` + `Cache-Control: immutable`; tóm tắt hội thoại chạy nền.
 - **Container:** API chạy user không root, có healthcheck; web dùng `nginx-unprivileged` với CSP điền từ `API_ORIGIN`/`MAP_ORIGIN`, cache vĩnh viễn asset có hash.
@@ -323,6 +324,7 @@ Chi tiết xem [api.md](api.md); schema đầy đủ ở [openapi.json](openapi.
 | GET | `/tracks` | Nhiều hành trình (FeatureCollection, phân trang theo tàu) |
 | GET | `/vessels/search` | Tìm tàu |
 | GET | `/vessels/{vessel}/dark-gaps` | GeoJSON các lần mất tín hiệu |
+| GET | `/stats` | Số liệu vận hành cho trang Thống kê (`range`: 24h, 7d, 30d, all) |
 | GET | `/health` | Kiểm tra sống (số tàu, số đoạn tri thức, model) |
 | GET | `/metrics` | Metrics Prometheus |
 
@@ -330,6 +332,7 @@ Khi bật `API_KEYS`, mọi route trừ `/health`, `/metrics`, `/docs` yêu cầ
 
 ## 13. Frontend
 
+- Thanh bên có hai chế độ: **Hỏi đáp** và **Thống kê** (`#/thong-ke`). Trang Thống kê dùng CSS container query theo độ rộng vùng nội dung, biểu đồ SVG tự vẽ đúng pixel (không thêm thư viện), có bảng ẩn cho trình đọc màn hình, tự làm mới mỗi 30 giây.
 - Bố cục ba cột: danh sách hội thoại, bản đồ, khung hỏi đáp. Trên màn hình hẹp, chuyển thành hai tab và một ngăn kéo cho danh sách hội thoại.
 - Stream đọc bằng `fetch` + `ReadableStream`, vì `EventSource` không hỗ trợ POST. Bộ đọc SSE có test cho trường hợp sự kiện bị cắt qua nhiều mảnh.
 - Khi nhận sự kiện `data`, client tải `/map-data/{id}`, **thêm** một lớp mới (không xoá lớp cũ) và tự zoom tới lớp đó. Ô chú giải cho phép bật/tắt, xoá từng lớp, hoặc xoá toàn bộ bản đồ. Khi mở lại hội thoại cũ, 6 lớp gần nhất được nạp lại.

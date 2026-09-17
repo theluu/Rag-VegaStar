@@ -13,6 +13,7 @@ Tài liệu mô tả mô hình đe doạ, các biện pháp đã triển khai v�
 | Dịch vụ và chi phí | Spam, DoS, đốt token | Rate limit token-bucket theo API key hoặc IP (chat và API riêng), giới hạn body 64 KB, giới hạn độ dài tin nhắn, số vòng tool tối đa, timeout LLM và SQL, cache kết quả tool. |
 | Hội thoại của người dùng | Truy cập trái phép | API key tuỳ chọn (`API_KEYS`, so sánh hằng thời gian qua `X-API-Key` hoặc `Authorization: Bearer`). Mọi truy vấn hội thoại và bộ nhớ đều lọc theo `conversation_id`. |
 | Trình duyệt người dùng | XSS qua nội dung LLM, clickjacking | React escape toàn bộ nội dung; Markdown không cho phép HTML thô; popup bản đồ escape dữ liệu. nginx gửi CSP chặt chẽ (`script-src 'self'`, `frame-ancestors 'none'`, chỉ cho kết nối tới API và máy chủ bản đồ), cùng `X-Frame-Options`, `nosniff`, `Referrer-Policy`, `Permissions-Policy`. API trả `Content-Security-Policy: default-src 'none'`. |
+| Số liệu vận hành | Lộ câu hỏi của người dùng, chi phí, cấu hình qua `/stats` | Dùng chung API key và rate limit; không trả khoá, URL hay prompt; câu hỏi được React escape khi hiển thị. Tắt bằng `STATS_ENABLED=false`. |
 | Hạ tầng | Lộ secret trong repo hoặc image; container chạy root | `.env` và `data/` nằm trong `.gitignore`; image API chạy user `app` (uid 10001); web dùng `nginx-unprivileged`; lỗi 500 chỉ trả thông điệp chung kèm `request_id` (chi tiết nằm trong log). |
 
 ## Các lớp phòng thủ khi xử lý một câu hỏi
@@ -35,7 +36,7 @@ Tài liệu mô tả mô hình đe doạ, các biện pháp đã triển khai v�
 
 - [ ] Bật `API_KEYS` hoặc đặt API sau gateway có xác thực; phân quyền hội thoại theo người dùng.
 - [ ] Đặt `TRUST_PROXY_HEADERS=true` chỉ khi đứng sau reverse proxy tin cậy; bật TLS và HSTS ở proxy.
-- [ ] Chặn `/metrics` và `/docs` khỏi Internet.
+- [ ] Chặn `/metrics` và `/docs` khỏi Internet; chỉ cho quản trị viên xem `/stats` và tab Thống kê (hoặc đặt `STATS_ENABLED=false`).
 - [ ] Tạo role Postgres riêng chỉ có quyền `SELECT` cho pool tool (hiện dùng cơ chế read-only ở mức phiên); đổi mật khẩu mặc định; bật sao lưu.
 - [ ] Rate limit và cache dùng Redis; đặt giới hạn chi tiêu và cảnh báo chi phí trên tài khoản OpenAI.
 - [ ] Quét phụ thuộc định kỳ (`pip-audit`, `npm audit`) và quét image (Trivy).

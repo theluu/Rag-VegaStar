@@ -10,6 +10,7 @@ Chatbot LLM trả lời câu hỏi tiếng Việt về 1.000 tàu (AIS 10–12/0
 - **Bộ nhớ dài hạn.** Kết hợp trạng thái hội thoại, tóm tắt cuốn chiếu, truy xuất vector (pgvector) và cửa sổ nguyên văn cấu hình được.
 - **Harness đánh giá.** Câu hỏi sinh từ dữ liệu thật (đáp án bằng SQL) cùng các ca red-team; **42/42 ca đạt**.
 - **Bảo mật và vận hành.** API key, rate limit, header bảo mật và CSP, `/metrics` Prometheus, log JSON, cache kết quả tool, container không chạy root.
+- **Trang Thống kê vận hành.** Số lượt, tỉ lệ thành công, chi phí, độ trễ, công cụ, cache, guardrail, tỉ lệ trích chứng cứ, RAG, kết quả harness và quy mô dữ liệu; đọc từ cơ sở dữ liệu nên còn nguyên sau khi khởi động lại.
 - **Giao diện web + SEO/GEO.** Danh sách hội thoại, stream, thẻ chứng cứ, bản đồ MapLibre (vị trí, hành trình, mất tín hiệu, hàng chục nghìn điểm); Open Graph, JSON-LD, `llms.txt`.
 
 ![Nhiều hành trình trên bản đồ: 484 tàu hàng ngày 11/09, xếp hạng quãng đường theo màu tuyến](docs/images/ui-multi-tracks.png)
@@ -24,6 +25,8 @@ Chatbot LLM trả lời câu hỏi tiếng Việt về 1.000 tàu (AIS 10–12/0
 <td align="center">Màn hình bắt đầu, khung vùng dữ liệu</td>
 </tr>
 </table>
+
+![Trang Thống kê vận hành: lượt hỏi đáp, chi phí, độ trễ, công cụ, guardrail, chất lượng câu trả lời](docs/images/ui-stats.png)
 
 | Tài liệu | Nội dung |
 |---|---|
@@ -48,7 +51,7 @@ Chatbot LLM trả lời câu hỏi tiếng Việt về 1.000 tàu (AIS 10–12/0
 | N3 | ✅ | `GET /tracks` trả FeatureCollection nhiều tàu, có phân trang. Hỏi qua chat ("hành trình tất cả tàu do X khai thác", "toàn bộ tàu cargo ngày 11/09"): 484 tàu, 35,7 nghìn điểm vẽ bằng WebGL. LLM chỉ nhận bản tóm tắt. |
 | D1 | ✅ | README này, `.env.example` giải thích mọi biến, ví dụ `curl`. |
 | D2 | ✅ | `docs/research.md`, `docs/architecture.md`. |
-| D3 | ✅ | 173 test pytest (tầng truy vấn, tool, bộ nhớ, guardrail, RAG, chứng cứ, bảo mật, tích hợp API) + 8 test frontend; `results/` chứa transcript kịch bản, đáp án SQL và báo cáo harness đánh giá. |
+| D3 | ✅ | 178 test pytest (tầng truy vấn, tool, bộ nhớ, guardrail, RAG, chứng cứ, bảo mật, thống kê, tích hợp API) + 13 test frontend; `results/` chứa transcript kịch bản, đáp án SQL và báo cáo harness đánh giá. |
 
 ### Mở rộng cho sản phẩm AI
 
@@ -60,6 +63,7 @@ Chatbot LLM trả lời câu hỏi tiếng Việt về 1.000 tàu (AIS 10–12/0
 | Harness | Sinh ca từ dữ liệu (seed), red-team, chấm xác định, báo cáo, ngưỡng CI | `evals/`, [results/eval_report.md](results/eval_report.md) |
 | Security | API key, rate limit, header và CSP, giới hạn body, pool chỉ đọc, lỗi 500 an toàn, container không root | `api/security.py`, [SECURITY.md](SECURITY.md) |
 | Hiệu năng và quan sát | Cache tool, truy vấn LATERAL, gzip, ETag, `/metrics`, log JSON có chi phí | `tools/cache.py`, `observability.py` |
+| Thống kê vận hành | Telemetry từng lượt lưu trong DB; `GET /stats`; tab Thống kê (`#/thong-ke`) với KPI, biểu đồ theo ngày, công cụ, guardrail, chất lượng, lượt gần đây, harness | `api/routes_stats.py`, `repositories/stats.py`, `frontend/src/components/StatsView.tsx` |
 | SEO/GEO | Meta, Open Graph, JSON-LD, nội dung tĩnh cho bot, robots, sitemap, `llms.txt` | `frontend/index.html`, `frontend/public/` |
 
 ## Yêu cầu hệ thống
@@ -80,8 +84,8 @@ docker compose run --rm api python scripts/load_data.py   # tạo schema + nạp
 
 Kho tri thức (`knowledge/`) được tự đồng bộ khi API khởi động (`RAG_AUTO_INGEST=true`), hoặc chạy thủ công: `docker compose run --rm api python scripts/ingest_knowledge.py`.
 
-- Giao diện: http://localhost:5173
-- API: http://localhost:8000 (tài liệu tương tác tại `/docs`)
+- Giao diện: http://localhost:5173 (trang thống kê: http://localhost:5173/#/thong-ke)
+- API: http://localhost:8000 (tài liệu tương tác tại `/docs`, số liệu vận hành tại `/stats`)
 
 Nếu cổng bị chiếm, đổi `DB_HOST_PORT`, `API_HOST_PORT`, `WEB_HOST_PORT` trong `.env`. Khi đổi cổng API, sửa luôn `VITE_API_BASE_URL` và `CORS_ORIGINS` rồi build lại `web`.
 
@@ -142,14 +146,27 @@ data: {"message_id": 42, "turn": 1, "usage": {…}, "data_ids": ["7806b8ea-…"]
 
 Xem thêm ví dụ trong [docs/api.md](docs/api.md).
 
+## Thống kê vận hành
+
+Bấm **Thống kê** ở thanh bên trái (hoặc mở `#/thong-ke`). Trang tự làm mới mỗi 30 giây, chọn được khoảng 24 giờ, 7 ngày, 30 ngày hoặc toàn bộ:
+
+- **KPI:** số lượt và cuộc hỏi đáp, tỉ lệ trả lời thành công, chi phí LLM (tổng và mỗi lượt), thời gian tới chữ đầu tiên (trung vị, p95), tỉ lệ câu trả lời khớp dữ liệu.
+- **Biểu đồ:** lượt hỏi đáp và chi phí theo ngày (di chuột để xem chi tiết); kết quả các lượt (xong, bị chặn, lỗi, người dùng dừng).
+- **Công cụ:** số lần gọi, tỉ lệ thành công, tỉ lệ trúng cache, độ trễ trung vị và p95 của từng tool.
+- **Chất lượng:** tỉ lệ trích chứng cứ, tỉ lệ số liệu khớp, số câu hệ thống phải tự gắn chứng cứ; sự kiện guardrail theo loại; RAG và bộ nhớ.
+- **Lượt gần đây:** câu hỏi, công cụ, kết quả, chứng cứ, thời gian, token, chi phí; bấm để mở lại cuộc hỏi đáp.
+- **Harness, dữ liệu, cấu hình:** kết quả `results/eval_report.json`, quy mô dữ liệu nguồn, mô hình và các thiết lập đang chạy.
+
+Mỗi lượt lưu `meta.telemetry` (kết quả, độ trễ, token, chi phí, thời gian và trạng thái cache của từng tool) trong bảng `messages`, nên số liệu không mất khi khởi động lại API. Lượt tạo trước khi có tính năng này vẫn được tính số lượt, token, công cụ và guardrail, chỉ thiếu độ trễ. Tắt bằng `STATS_ENABLED=false`; khi public, chỉ cho quản trị viên truy cập (xem [SECURITY.md](SECURITY.md)).
+
 ## Chạy test
 
 Test dùng PostgreSQL thật: database `vessel_test` được container DB tạo sẵn ở lần khởi tạo đầu tiên. Dữ liệu test là một bộ nhỏ tự sinh trong `tests/fixtures`. LLM và embedding trong test là bản giả, nên **không gọi OpenAI**.
 
 ```bash
 docker compose up -d db
-.venv/bin/pytest -q              # 173 test: truy vấn, tool, bộ nhớ, guardrail, RAG, chứng cứ, bảo mật, API/SSE
-cd frontend && npm test          # 8 test: bộ đọc SSE, dựng transcript, nhãn tham số, liên kết chứng cứ
+.venv/bin/pytest -q              # 178 test: truy vấn, tool, bộ nhớ, guardrail, RAG, chứng cứ, bảo mật, thống kê, API/SSE
+cd frontend && npm test          # 13 test: bộ đọc SSE, dựng transcript, nhãn tham số, liên kết chứng cứ, định dạng thống kê
 ```
 
 ## Harness đánh giá
@@ -188,7 +205,7 @@ src/vessel_chat/
   llm/                   client OpenAI (chat, embedding, moderation) và prompt
   memory/manager.py      bộ nhớ kết hợp
   chat/                  vòng lặp LLM ↔ tool, chứng cứ, sự kiện
-  api/                   FastAPI, bảo mật (API key, rate limit, header)
+  api/                   FastAPI, bảo mật (API key, rate limit, header), thống kê vận hành
   observability.py       metrics Prometheus, log JSON
 knowledge/               tài liệu nghiệp vụ cho RAG
 evals/                   harness đánh giá (sinh ca, ca tĩnh/red-team, chấm điểm)
