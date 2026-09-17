@@ -18,7 +18,7 @@ from ..observability import CHAT_DURATION, CHAT_TTFT, CHAT_TURNS, GUARDRAIL_EVEN
 from ..repositories import conversations as conv_repo
 from ..repositories import map_data as map_repo
 from ..timeutil import iso
-from ..tools import ToolContext, ToolResult, execute_tool, openai_tool_specs
+from ..tools import ToolContext, ToolResult, ToolRun, openai_tool_specs, run_tool
 from ..tools.cache import ToolCache
 from .events import Event
 from .evidence import build_evidence, cited_ids
@@ -127,23 +127,35 @@ class ChatService:
 
         return await asyncio.shield(write())
 
-    def _record_turn(self, conv_id, turn, outcome, started, first_token_at, tools_used, usage) -> None:
-        duration = time.perf_counter() - started
+    def _telemetry(self, outcome: str, started: float, first_token_at: float | None,
+                   tool_runs: list[tuple[str, ToolRun]], usage: dict) -> dict:
+        """Số đo vận hành của một lượt; lưu vào meta để trang thống kê đọc lại sau khi khởi động lại."""
         ttft = None if first_token_at is None else first_token_at - started
-        cost = self.settings.cost_usd(usage["prompt_tokens"], usage["completion_tokens"])
-        CHAT_TURNS.labels(outcome).inc()
-        CHAT_DURATION.observe(duration)
-        if ttft is not None:
-            CHAT_TTFT.observe(ttft)
-        LLM_TOKENS.labels("prompt").inc(usage["prompt_tokens"])
-        LLM_TOKENS.labels("completion").inc(usage["completion_tokens"])
-        LLM_COST.inc(cost)
+        return {
+            "outcome": outcome,
+            "model": self.settings.llm_model,
+            "ttft_s": None if ttft is None else round(ttft, 3),
+            "duration_s": round(time.perf_counter() - started, 3),
+            "prompt_tokens": usage["prompt_tokens"],
+            "completion_tokens": usage["completion_tokens"],
+            "cost_usd": round(self.settings.cost_usd(usage["prompt_tokens"], usage["completion_tokens"]), 6),
+            "tools": [{"name": name, "ok": run.result.ok, "cache": run.cache, "ms": round(run.seconds * 1000, 1)}
+                      for name, run in tool_runs],
+        }
+
+    def _record_turn(self, conv_id: str, turn: int, t: dict) -> None:
+        CHAT_TURNS.labels(t["outcome"]).inc()
+        CHAT_DURATION.observe(t["duration_s"])
+        if t["ttft_s"] is not None:
+            CHAT_TTFT.observe(t["ttft_s"])
+        LLM_TOKENS.labels("prompt").inc(t["prompt_tokens"])
+        LLM_TOKENS.labels("completion").inc(t["completion_tokens"])
+        LLM_COST.inc(t["cost_usd"])
         log_event(
             log, "chat_turn",
-            conversation_id=conv_id, turn=turn, outcome=outcome, tools=tools_used,
-            ttft_s=None if ttft is None else round(ttft, 3), duration_s=round(duration, 3),
-            prompt_tokens=usage["prompt_tokens"], completion_tokens=usage["completion_tokens"],
-            cost_usd=round(cost, 6),
+            conversation_id=conv_id, turn=turn, outcome=t["outcome"], tools=[x["name"] for x in t["tools"]],
+            ttft_s=t["ttft_s"], duration_s=t["duration_s"],
+            prompt_tokens=t["prompt_tokens"], completion_tokens=t["completion_tokens"], cost_usd=t["cost_usd"],
         )
 
     async def run_turn(self, conv_id: str, text: str) -> AsyncIterator[Event]:
@@ -170,7 +182,7 @@ class ChatService:
         focus = dict(conv["focus_state"] or {})
         started = time.perf_counter()
         first_token_at: float | None = None
-        tools_used: list[str] = []
+        tool_runs: list[tuple[str, ToolRun]] = []
         outcome = "ok"
         answer = ""
         message_id = None
@@ -186,9 +198,11 @@ class ChatService:
             yield _guardrail_event("input", "block", verdict.kind, "Yêu cầu bị chặn bởi guardrail đầu vào.",
                                    reasons=verdict.reasons)
             yield Event("token", {"text": verdict.message})
-            message_id = await self._save(conv_id, turn, "assistant", verdict.message, meta={"guardrail": guard_log})
+            telemetry = self._telemetry("blocked", started, time.perf_counter(), [], usage_total)
+            message_id = await self._save(conv_id, turn, "assistant", verdict.message,
+                                          meta={"guardrail": guard_log, "telemetry": telemetry})
             self.memory.schedule_after_turn(conv_id, turn)
-            self._record_turn(conv_id, turn, "blocked", started, time.perf_counter(), [], usage_total)
+            self._record_turn(conv_id, turn, telemetry)
             yield Event("done", {"message_id": message_id, "turn": turn, "usage": usage_total, "data_ids": []})
             return
 
@@ -258,14 +272,15 @@ class ChatService:
                 messages.append({"role": "assistant", "content": answer or None, "tool_calls": call_dicts})
                 await self._save(conv_id, turn, "assistant", answer, tool_calls=call_dicts)
                 answer = ""
-                tools_used.extend(c.name for c in calls)
                 for c in calls:
                     yield Event("tool_call", {"id": c.id, "name": c.name, "args": _parse_args(c.arguments)})
 
                 tool_ctx = ToolContext(pool=self.tool_pool, settings=s, focus=dict(focus), cache=self.tool_cache,
                                        embedder=self.memory.embedder)
-                results = await asyncio.gather(*(execute_tool(tool_ctx, c.name, c.arguments) for c in calls))
-                for c, result in zip(calls, results):
+                runs = await asyncio.gather(*(run_tool(tool_ctx, c.name, c.arguments) for c in calls))
+                tool_runs.extend((c.name, run) for c, run in zip(calls, runs))
+                for c, run in zip(calls, runs):
+                    result = run.result
                     eid = f"E{evidence_base + len(evidence) + 1}"
                     content = {"evidence_id": eid, **result.content}
                     ev = build_evidence(eid, c.name, _parse_args(c.arguments), result)
@@ -339,6 +354,8 @@ class ChatService:
                 meta["verification"] = verification
             if guard_log:
                 meta["guardrail"] = guard_log
+            telemetry = self._telemetry(outcome, started, first_token_at, tool_runs, usage_total)
+            meta["telemetry"] = telemetry
             message_id = await self._save(conv_id, turn, "assistant", answer, meta=meta)
         except asyncio.CancelledError:
             log.info("Lượt %s của hội thoại %s bị huỷ (client ngắt kết nối)", turn, conv_id)
@@ -351,9 +368,11 @@ class ChatService:
             outcome = "error"
             log.exception("Lỗi khi xử lý lượt %s của hội thoại %s", turn, conv_id)
             yield Event("error", _error_payload(exc))
+            telemetry = self._telemetry(outcome, started, first_token_at, tool_runs, usage_total)
             message_id = await self._save(conv_id, turn, "assistant", answer,
-                                          meta={"data_ids": data_ids, "evidence": evidence, "error": type(exc).__name__})
+                                          meta={"data_ids": data_ids, "evidence": evidence,
+                                                "error": type(exc).__name__, "telemetry": telemetry})
 
         self.memory.schedule_after_turn(conv_id, turn)
-        self._record_turn(conv_id, turn, outcome, started, first_token_at, tools_used, usage_total)
+        self._record_turn(conv_id, turn, telemetry)
         yield Event("done", {"message_id": message_id, "turn": turn, "usage": usage_total, "data_ids": data_ids})

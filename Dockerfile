@@ -14,6 +14,7 @@ COPY scripts ./scripts
 COPY scenarios ./scenarios
 COPY knowledge ./knowledge
 COPY evals ./evals
+COPY results/eval_report.json ./results/eval_report.json
 
 # Chạy bằng user không có quyền root
 USER app

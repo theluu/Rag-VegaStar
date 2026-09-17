@@ -3,7 +3,8 @@
 .env
 data
 frontend
-results
+results/*
+!results/eval_report.json
 tests
 docs
 .playwright-mcp

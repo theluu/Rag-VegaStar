@@ -19,6 +19,9 @@ class ToolCache:
         self.clock = clock
         self._items: OrderedDict[str, tuple[float, ToolResult]] = OrderedDict()
 
+    def __len__(self) -> int:
+        return len(self._items)
+
     @property
     def enabled(self) -> bool:
         return self.ttl > 0 and self.max_entries > 0

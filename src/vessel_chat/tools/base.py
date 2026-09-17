@@ -100,14 +100,28 @@ def error_result(message: str, **extra) -> ToolResult:
     return ToolResult(content={"error": message, **extra})
 
 
-async def execute_tool(ctx: ToolContext, name: str, raw_args: str | None) -> ToolResult:
+@dataclass
+class ToolRun:
+    """Một lần chạy tool kèm số đo vận hành (lưu vào meta của lượt để thống kê)."""
+
+    result: ToolResult
+    cache: str  # none | hit | miss
+    seconds: float
+
+
+async def run_tool(ctx: ToolContext, name: str, raw_args: str | None) -> ToolRun:
     """Chạy tool theo tên; mọi lỗi được chuyển thành kết quả {"error": ...} cho LLM tự xử lý."""
     started = time.perf_counter()
     result, cache_state = await _execute(ctx, name, raw_args)
+    seconds = time.perf_counter() - started
     label = name if name in REGISTRY else "unknown"
-    TOOL_LATENCY.labels(label).observe(time.perf_counter() - started)
+    TOOL_LATENCY.labels(label).observe(seconds)
     TOOL_CALLS.labels(label, str(result.ok).lower(), cache_state).inc()
-    return result
+    return ToolRun(result, cache_state, seconds)
+
+
+async def execute_tool(ctx: ToolContext, name: str, raw_args: str | None) -> ToolResult:
+    return (await run_tool(ctx, name, raw_args)).result
 
 
 async def _execute(ctx: ToolContext, name: str, raw_args: str | None) -> tuple[ToolResult, str]:

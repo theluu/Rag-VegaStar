@@ -69,6 +69,12 @@ class Settings(BaseSettings):
     metrics_enabled: bool = True
     log_json: bool = True
 
+    # --- Trang thống kê ---
+    stats_enabled: bool = True
+    stats_timezone: str = "Asia/Ho_Chi_Minh"  # múi giờ gom số liệu theo ngày
+    stats_inventory_ttl_seconds: int = 300  # cache số liệu quy mô dữ liệu nguồn
+    eval_report_path: str = "results/eval_report.json"
+
     # --- Chi phí ước tính (USD / 1M token) ---
     price_input_per_m: float = 0.15
     price_output_per_m: float = 0.60

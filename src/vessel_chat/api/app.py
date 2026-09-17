@@ -5,6 +5,7 @@
 
 import logging
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Request
@@ -20,7 +21,7 @@ from ..guardrails.input import Moderator
 from ..llm.client import Embedder, LLMClient, OpenAIEmbedder, OpenAILLM, OpenAIModerator
 from ..observability import MetricsMiddleware, configure_logging
 from ..rag.store import ingest_directory
-from . import routes_chat, routes_conversations, routes_map
+from . import routes_chat, routes_conversations, routes_map, routes_stats
 from .security import RateLimiter, SecurityMiddleware, limit_api, require_api_key
 
 log = logging.getLogger(__name__)
@@ -57,6 +58,7 @@ def create_app(
         app.state.pool = pool
         app.state.tool_pool = tool_pool
         app.state.service = service
+        app.state.started_at = datetime.now(UTC)
         log.info(
             "API sẵn sàng",
             extra={"fields": {
@@ -105,6 +107,8 @@ def create_app(
     app.include_router(routes_conversations.router, dependencies=protected)
     app.include_router(routes_chat.router, dependencies=[Depends(require_api_key)])
     app.include_router(routes_map.router, dependencies=protected)
+    if settings.stats_enabled:
+        app.include_router(routes_stats.router, dependencies=protected)
 
     @app.exception_handler(Exception)
     async def unhandled(request: Request, exc: Exception):
