@@ -19,7 +19,8 @@ async def list_conversations(conn: asyncpg.Connection, limit: int = 200) -> list
     rows = await conn.fetch(
         """
         SELECT c.id::text AS id, c.title, c.created_at, c.updated_at,
-               (SELECT count(*) FROM messages m WHERE m.conversation_id = c.id) AS message_count
+               (SELECT count(*) FROM messages m WHERE m.conversation_id = c.id) AS message_count,
+               (SELECT coalesce(max(turn_no), 0) FROM messages m WHERE m.conversation_id = c.id) AS turn_count
         FROM conversations c
         ORDER BY c.updated_at DESC
         LIMIT $1

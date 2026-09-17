@@ -1,0 +1,54 @@
+// Bộ icon nét (24×24) vẽ tay, tránh thêm thư viện
+const PATHS = {
+  ship: 'M3 16l2.2 4h13.6L21 16M5 16v-5h14v5M8 11V7h8v4M12 7V3.5',
+  pin: 'M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 1113 0c0 5.4-6.5 11-6.5 11zM12 12.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z',
+  route: 'M6 20a2 2 0 100-4 2 2 0 000 4zM18 8a2 2 0 100-4 2 2 0 000 4zM6 16V10a4 4 0 014-4h6M18 8v6a4 4 0 01-4 4H8',
+  signalOff: 'M3 3l18 18M8.6 16.4a4.8 4.8 0 016.3-.4M5.2 13a9.6 9.6 0 014.6-2.6M18.8 13a9.6 9.6 0 00-2.4-1.7M2 9.3a14.4 14.4 0 015-3M12 20h.01',
+  company: 'M4 21V6l8-3v18M12 9h8v12M3 21h18M8 8v.01M8 12v.01M8 16v.01M16 13v.01M16 17v.01',
+  fleet: 'M4 6h16M4 12h16M4 18h10',
+  layers: 'M12 3l9 5-9 5-9-5 9-5zM3 12.5l9 5 9-5M3 17l9 5 9-5',
+  send: 'M5 12h13M12 5l7 7-7 7',
+  stop: 'M7 7h10v10H7z',
+  plus: 'M12 5v14M5 12h14',
+  close: 'M6 6l12 12M18 6L6 18',
+  check: 'M5 12.5l4.5 4.5L19 7.5',
+  search: 'M10.5 18a7.5 7.5 0 100-15 7.5 7.5 0 000 15zM16 16l5 5',
+  trash: 'M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3',
+  eye: 'M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12zM12 15a3 3 0 100-6 3 3 0 000 6z',
+  eyeOff: 'M3 3l18 18M10.6 5.1A10.7 10.7 0 0112 5c6.4 0 10 7 10 7a17 17 0 01-3.2 4.1M6.6 6.6C3.8 8.3 2 12 2 12s3.6 7 10 7a9.6 9.6 0 005.4-1.6M9.9 9.9a3 3 0 004.2 4.2',
+  memory: 'M3 12a9 9 0 109-9 9.3 9.3 0 00-6.4 2.6L3 8M3 3v5h5M12 7.5V12l3 2',
+  focus: 'M12 3v3M12 18v3M3 12h3M18 12h3M12 16a4 4 0 100-8 4 4 0 000 8z',
+  alert: 'M12 9v4M12 17h.01M10.3 3.9L2.2 18a2 2 0 001.7 3h16.2a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z',
+  compass: 'M12 22a10 10 0 100-20 10 10 0 000 20zM15.5 8.5l-2 5-5 2 2-5 5-2z',
+  menu: 'M4 7h16M4 12h16M4 17h16',
+} as const
+
+export type IconName = keyof typeof PATHS
+
+export function Icon({ name, size = 18, className }: { name: IconName; size?: number; className?: string }) {
+  return (
+    <svg
+      className={className}
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d={PATHS[name]} />
+    </svg>
+  )
+}
+
+export function Spinner({ size = 16 }: { size?: number }) {
+  return (
+    <svg className="spinner" width={size} height={size} viewBox="0 0 24 24" aria-hidden>
+      <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeOpacity="0.25" strokeWidth="3" />
+      <path d="M21 12a9 9 0 00-9-9" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+    </svg>
+  )
+}

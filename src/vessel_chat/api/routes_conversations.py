@@ -24,6 +24,7 @@ class ConversationOut(BaseModel):
     created_at: datetime
     updated_at: datetime
     message_count: int = 0
+    turn_count: int = 0
 
 
 class ConversationDetail(ConversationOut):

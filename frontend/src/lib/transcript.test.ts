@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { StoredMessage } from './api'
-import { buildTurns, describeArgs } from './transcript'
+import { argChips, buildTurns } from './transcript'
 
 const base = { tool_calls: null, tool_call_id: null, tool_name: null, meta: null, created_at: '' }
 
@@ -21,6 +21,7 @@ describe('buildTurns', () => {
     expect(turns).toHaveLength(2)
     expect(turns[0].question).toBe('Tàu X ở đâu?')
     expect(turns[0].answer).toBe('Ở đây.')
+    expect(turns[0].mapIds).toEqual(['d1'])
     expect(turns[0].steps).toEqual([
       { id: 'c1', name: 'get_last_position', args: { vessel: 'X' }, ok: true, summary: { status: 'ok' } },
     ])
@@ -37,8 +38,16 @@ describe('buildTurns', () => {
   })
 })
 
-describe('describeArgs', () => {
-  it('drops empty values', () => {
-    expect(describeArgs({ vessel: 'A', role: null, start: '2026-09-11' })).toBe('vessel: A, start: 2026-09-11')
+describe('argChips', () => {
+  it('labels known arguments in Vietnamese and formats times', () => {
+    expect(argChips({ vessel: 'A', role: 'operator', start: '2026-09-11T00:00:00Z', limit: null })).toEqual([
+      { label: 'Tàu', value: 'A' },
+      { label: 'Vai trò', value: 'nhà khai thác' },
+      { label: 'Từ', value: '11/09 00:00' },
+    ])
+  })
+
+  it('keeps raw text arguments', () => {
+    expect(argChips('{bad')).toEqual([{ label: 'Tham số', value: '{bad' }])
   })
 })

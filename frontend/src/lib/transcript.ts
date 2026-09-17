@@ -1,3 +1,4 @@
+import type { IconName } from '../components/Icon'
 import type { StoredMessage, ToolResultEvent } from './api'
 
 export interface ToolStep {
@@ -13,10 +14,11 @@ export interface Turn {
   question: string
   steps: ToolStep[]
   answer: string
+  mapIds: string[]
   error?: string
   interrupted?: boolean
   pending?: boolean
-  memory?: { window: number[]; summary: boolean; recalled: number[] }
+  memory?: { window: number[]; summary: boolean; recalled: { turn: number; score: number }[] }
 }
 
 function parseArgs(raw: string): Record<string, unknown> | string {
@@ -38,13 +40,13 @@ function summarizeToolContent(content: string): Pick<ToolResultEvent, 'ok' | 'su
   }
 }
 
-/** Gom tin nhắn đã lưu thành các lượt hiển thị (câu hỏi, các bước tool, câu trả lời). */
+/** Gom tin nhắn đã lưu thành các lượt hiển thị (câu hỏi, các bước tool, lớp bản đồ, câu trả lời). */
 export function buildTurns(messages: StoredMessage[]): Turn[] {
   const turns = new Map<number, Turn>()
   for (const m of messages) {
     let turn = turns.get(m.turn_no)
     if (!turn) {
-      turn = { key: `t${m.turn_no}`, question: '', steps: [], answer: '' }
+      turn = { key: `t${m.turn_no}`, question: '', steps: [], answer: '', mapIds: [] }
       turns.set(m.turn_no, turn)
     }
     if (m.role === 'user') {
@@ -54,6 +56,7 @@ export function buildTurns(messages: StoredMessage[]): Turn[] {
         turn.steps.push({ id: call.id, name: call.function.name, args: parseArgs(call.function.arguments) })
       }
       if (m.content) turn.answer += m.content
+      if (m.meta?.data_ids) turn.mapIds.push(...m.meta.data_ids)
       if (m.meta?.error) turn.error = `Không hoàn tất câu trả lời (${m.meta.error}).`
       if (m.meta?.interrupted) turn.interrupted = true
     } else if (m.role === 'tool') {
@@ -64,26 +67,64 @@ export function buildTurns(messages: StoredMessage[]): Turn[] {
   return [...turns.entries()].sort((a, b) => a[0] - b[0]).map(([, t]) => t)
 }
 
-const TOOL_LABELS: Record<string, string> = {
-  search_vessels: 'Tìm tàu',
-  get_vessel_details: 'Tra hồ sơ tàu',
-  find_company_vessels: 'Tra đội tàu của công ty',
-  get_position_at: 'Tra vị trí theo thời điểm',
-  get_last_position: 'Tra vị trí cuối cùng',
-  get_track: 'Dựng hành trình',
-  get_dark_gaps: 'Tra các lần mất tín hiệu',
-  get_multi_tracks: 'Dựng nhiều hành trình',
+const TOOLS: Record<string, { label: string; icon: IconName }> = {
+  search_vessels: { label: 'Tìm tàu', icon: 'search' },
+  get_vessel_details: { label: 'Tra hồ sơ tàu', icon: 'ship' },
+  find_company_vessels: { label: 'Tra đội tàu của công ty', icon: 'company' },
+  get_position_at: { label: 'Tra vị trí theo thời điểm', icon: 'pin' },
+  get_last_position: { label: 'Tra vị trí cuối cùng', icon: 'pin' },
+  get_track: { label: 'Dựng hành trình', icon: 'route' },
+  get_dark_gaps: { label: 'Tra các lần mất tín hiệu', icon: 'signalOff' },
+  get_multi_tracks: { label: 'Dựng nhiều hành trình', icon: 'fleet' },
 }
 
-export function toolLabel(name: string): string {
-  return TOOL_LABELS[name] ?? name
+export function toolMeta(name: string): { label: string; icon: IconName } {
+  return TOOLS[name] ?? { label: name, icon: 'compass' }
 }
 
-/** Mô tả ngắn tham số tool để hiển thị trong nhật ký. */
-export function describeArgs(args: ToolStep['args']): string {
-  if (typeof args === 'string') return args
+const ARG_LABELS: Record<string, string> = {
+  vessel: 'Tàu',
+  query: 'Tìm',
+  company_name: 'Công ty',
+  role: 'Vai trò',
+  ship_type_group: 'Loại tàu',
+  timestamp: 'Lúc',
+  start: 'Từ',
+  end: 'Đến',
+  order_by: 'Sắp xếp',
+  exclude_vessel: 'Trừ tàu',
+}
+
+const VALUE_LABELS: Record<string, string> = {
+  registered_owner: 'chủ sở hữu đăng ký',
+  beneficial_owner: 'chủ sở hữu hưởng lợi',
+  operator: 'nhà khai thác',
+  commercial_manager: 'quản lý thương mại',
+  technical_manager: 'quản lý kỹ thuật',
+  ism_manager: 'quản lý ISM',
+  tanker: 'tàu dầu/hoá chất/khí',
+  cargo: 'tàu hàng',
+  fishing: 'tàu cá',
+  tug: 'tàu kéo',
+  passenger: 'tàu khách',
+  duration: 'lâu nhất',
+  distance: 'xa nhất',
+  start: 'theo thời gian',
+}
+
+const ISO = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?/
+
+function formatValue(v: unknown): string {
+  const text = String(v)
+  const m = ISO.exec(text)
+  if (m) return m[4] ? `${m[3]}/${m[2]} ${m[4]}:${m[5]}` : `${m[3]}/${m[2]}`
+  return VALUE_LABELS[text] ?? text
+}
+
+/** Tham số tool dạng nhãn tiếng Việt để hiển thị thành chip. */
+export function argChips(args: ToolStep['args']): { label: string; value: string }[] {
+  if (typeof args === 'string') return [{ label: 'Tham số', value: args }]
   return Object.entries(args)
-    .filter(([, v]) => v !== null && v !== undefined && v !== '')
-    .map(([k, v]) => `${k}: ${String(v)}`)
-    .join(', ')
+    .filter(([k, v]) => v !== null && v !== undefined && v !== '' && k in ARG_LABELS)
+    .map(([k, v]) => ({ label: ARG_LABELS[k], value: formatValue(v) }))
 }

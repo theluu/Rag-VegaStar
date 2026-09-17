@@ -7,6 +7,19 @@ Chatbot LLM trả lời câu hỏi tiếng Việt về 1.000 tàu (AIS 10–12/0
 - **Bộ nhớ dài hạn.** Kết hợp trạng thái hội thoại, tóm tắt cuốn chiếu, truy xuất vector (pgvector) và cửa sổ nguyên văn cấu hình được.
 - **Giao diện web.** Có danh sách hội thoại, câu trả lời hiện dần theo stream, và bản đồ MapLibre tự vẽ vị trí, hành trình, các lần mất tín hiệu và nhiều hành trình cùng lúc (hàng chục nghìn điểm).
 
+![Nhiều hành trình trên bản đồ: 484 tàu hàng ngày 11/09, xếp hạng quãng đường theo màu tuyến](docs/images/ui-multi-tracks.png)
+
+<table>
+<tr>
+<td><img src="docs/images/ui-track-gaps.png" alt="Hành trình và lần mất tín hiệu AIS của một tàu, các bước tra cứu hiện trong câu trả lời"></td>
+<td><img src="docs/images/ui-welcome.png" alt="Màn hình bắt đầu với các nhóm câu hỏi mẫu và khung vùng dữ liệu trên bản đồ"></td>
+</tr>
+<tr>
+<td align="center">Hành trình + lần tắt AIS, hỏi nối tiếp "của nó"</td>
+<td align="center">Màn hình bắt đầu, khung vùng dữ liệu</td>
+</tr>
+</table>
+
 | Tài liệu | Nội dung |
 |---|---|
 | [docs/architecture.md](docs/architecture.md) | Kiến trúc, luồng xử lý, bộ nhớ, schema, tool, hạn chế, chi phí, hướng mở rộng |
@@ -22,12 +35,12 @@ Chatbot LLM trả lời câu hỏi tiếng Việt về 1.000 tàu (AIS 10–12/0
 | R2 | ✅ | CRUD hội thoại; `POST /conversations/{id}/chat` stream SSE theo token; lỗi được báo qua sự kiện `error`, stream vẫn kết thúc bằng `done`. Các hội thoại chạy song song độc lập; có lệnh `curl` xem stream. |
 | R3 | ✅ | Toàn bộ tin nhắn lưu trong Postgres. Giữ trạng thái đối tượng đang bàn để hiểu "nó", "tàu đó", "công ty đó". Tóm tắt + pgvector; `MEMORY_WINDOW_TURNS` cấu hình được. Kịch bản 3 chạy với cửa sổ 2 lượt. |
 | R4 | ✅ | a) thông tin tàu và công ty theo vai trò, các tàu khác cùng chủ; b) vị trí gần nhất kèm độ lệch và **nội suy**; c) hành trình, quãng đường, tốc độ, GeoJSON; d) dark gap kèm tốc độ trước/sau khi mất. |
-| N1 | ✅ | React + Vite: danh sách hội thoại, tạo mới/mở lại/xoá, hiển thị stream, nhật ký các lần gọi tool. |
-| N2 | ✅ | Sự kiện `data` mang `data_id`; client tải GeoJSON từ `/map-data/{id}`. Câu nối tiếp "hiện thêm các lần tắt AIS của nó" thêm lớp mới lên bản đồ. |
+| N1 | ✅ | React + Vite: danh sách hội thoại (tìm kiếm, nhóm theo ngày), tạo mới/mở lại/xoá, câu trả lời stream theo token, các bước tra cứu hiện dạng thẻ có trạng thái và tham số, ghi chú khi nhớ lại từ bộ nhớ dài hạn. |
+| N2 | ✅ | Sự kiện `data` mang `data_id`; client tải GeoJSON từ `/map-data/{id}`. Câu nối tiếp "hiện thêm các lần tắt AIS của nó" thêm lớp mới lên bản đồ. Mỗi câu trả lời có nút phóng tới lớp bản đồ tương ứng; bấm lên tuyến/điểm để xem chi tiết. |
 | N3 | ✅ | `GET /tracks` trả FeatureCollection nhiều tàu, có phân trang. Hỏi qua chat ("hành trình tất cả tàu do X khai thác", "toàn bộ tàu cargo ngày 11/09"): 484 tàu, 35,7 nghìn điểm vẽ bằng WebGL. LLM chỉ nhận bản tóm tắt. |
 | D1 | ✅ | README này, `.env.example` giải thích mọi biến, ví dụ `curl`. |
 | D2 | ✅ | `docs/research.md`, `docs/architecture.md`. |
-| D3 | ✅ | 112 test pytest (unit tầng truy vấn/tool/bộ nhớ và tích hợp API) + 6 test frontend; `results/` chứa transcript và đáp án SQL. |
+| D3 | ✅ | 112 test pytest (unit tầng truy vấn/tool/bộ nhớ và tích hợp API) + 7 test frontend; `results/` chứa transcript và đáp án SQL. |
 
 ## Yêu cầu hệ thống
 
@@ -112,7 +125,7 @@ Test dùng PostgreSQL thật: database `vessel_test` được container DB tạo
 ```bash
 docker compose up -d db
 .venv/bin/pytest -q              # 112 test: tầng truy vấn, tool, bộ nhớ, API/SSE
-cd frontend && npm test          # bộ đọc SSE, dựng transcript
+cd frontend && npm test          # 7 test: bộ đọc SSE, dựng transcript, nhãn tham số
 ```
 
 ## Chạy lại kịch bản và đối chiếu đáp án

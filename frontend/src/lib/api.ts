@@ -9,6 +9,7 @@ export interface Conversation {
   created_at: string
   updated_at: string
   message_count: number
+  turn_count: number
 }
 
 export interface StoredToolCall {

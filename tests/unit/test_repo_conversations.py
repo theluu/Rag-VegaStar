@@ -24,7 +24,7 @@ async def test_conversation_crud_and_messages(pool):
 
         listed = await conv_repo.list_conversations(conn)
         entry = next(x for x in listed if x["id"] == cid)
-        assert entry["message_count"] == 4
+        assert entry["message_count"] == 4 and entry["turn_count"] == 1
 
         await conv_repo.update_focus(conn, cid, {"vessel": {"name": "A"}})
         await conv_repo.update_summary(conn, cid, "tóm tắt", 3)

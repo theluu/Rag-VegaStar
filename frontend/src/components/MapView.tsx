@@ -25,6 +25,7 @@ export interface MapLayer {
   detail: string
   geojson: FeatureCollection
   bbox: [number, number, number, number] | null
+  summary: Record<string, unknown>
   visible: boolean
 }
 
@@ -35,10 +36,10 @@ const STYLE_URL =
 const INITIAL_BOUNDS: [number, number, number, number] = [102, 6, 118, 23]
 
 export const COLORS = {
-  ink: '#0F2A3D',
+  ink: '#0B2238',
   magenta: '#B3246B',
-  amber: '#E0A526',
-  teal: '#2E7F8C',
+  amber: '#F2A900',
+  teal: '#1F8A8A',
   slate: '#8FA3AD',
   paper: '#FFFFFF',
 }
@@ -135,6 +136,43 @@ function popupHtml(f: MapGeoJSONFeature): string {
   return `<strong>${LABELS[String(p.kind)] ?? ''}</strong><dl>${body}</dl>`
 }
 
+// Vùng có dữ liệu AIS theo đề bài: vẽ khung nét đứt để người xem biết phạm vi
+const REGION: FeatureCollection = {
+  type: 'FeatureCollection',
+  features: [{
+    type: 'Feature',
+    properties: {},
+    geometry: {
+      type: 'Polygon',
+      coordinates: [[[102, 6], [118, 6], [118, 23], [102, 23], [102, 6]]],
+    },
+  }],
+}
+
+function addDataRegion(map: MapLibreMap) {
+  if (map.getSource('data-region')) return
+  map.addSource('data-region', { type: 'geojson', data: REGION })
+  map.addLayer({ id: 'data-region-line', type: 'line', source: 'data-region',
+    paint: { 'line-color': COLORS.ink, 'line-width': 1.2, 'line-opacity': 0.55, 'line-dasharray': [4, 3] } })
+}
+
+// Dịu màu nước và đất của style nền cho giống hải đồ; bỏ qua nếu style không có các lớp này
+function tintBasemap(map: MapLibreMap) {
+  const set = (layer: string, prop: string, value: string) => {
+    if (map.getLayer(layer)) map.setPaintProperty(layer, prop as 'fill-color', value)
+  }
+  set('water', 'fill-color', '#BFDCEB')
+  set('background', 'background-color', '#F6F3EC')
+}
+
+function hoverHtml(f: MapGeoJSONFeature): string {
+  const p = f.properties as Record<string, string | number | undefined>
+  const esc = (v: unknown) => String(v).replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`)
+  const title = esc(p.name ?? p.label ?? LABELS[String(p.kind)] ?? '')
+  const extra = p.distance_nm !== undefined ? `${p.distance_nm} hải lý` : p.ts ? esc(String(p.ts).replace('T', ' ').replace('Z', ' UTC')) : ''
+  return `<strong>${title}</strong>${extra ? `<span>${extra}</span>` : ''}`
+}
+
 interface Props {
   layers: MapLayer[]
   fitTo: { id: string; nonce: number } | null
@@ -145,6 +183,7 @@ export function MapView({ layers, fitTo }: Props) {
   const mapRef = useRef<MapLibreMap | null>(null)
   const added = useRef(new Map<string, string[]>())
   const [ready, setReady] = useState(false)
+  const hover = useRef<Popup | null>(null)
 
   useEffect(() => {
     if (!container.current || mapRef.current) return
@@ -157,7 +196,10 @@ export function MapView({ layers, fitTo }: Props) {
     })
     map.addControl(new NavigationControl({ showCompass: false }), 'top-left')
     map.addControl(new ScaleControl({ unit: 'nautical' }), 'bottom-right')
+    hover.current = new Popup({ closeButton: false, closeOnClick: false, className: 'hover-tip', offset: 10 })
     map.on('load', () => {
+      tintBasemap(map)
+      addDataRegion(map)
       // Container có thể chưa có kích thước lúc khởi tạo → đo lại rồi mới căn khung vùng dữ liệu
       map.resize()
       map.fitBounds(INITIAL_BOUNDS, { padding: 24, animate: false })
@@ -201,8 +243,15 @@ export function MapView({ layers, fitTo }: Props) {
             const f = e.features?.[0]
             if (f) new Popup({ closeButton: true, maxWidth: '260px' }).setLngLat(e.lngLat).setHTML(popupHtml(f)).addTo(map)
           })
-          map.on('mouseenter', lid, () => (map.getCanvas().style.cursor = 'pointer'))
-          map.on('mouseleave', lid, () => (map.getCanvas().style.cursor = ''))
+          map.on('mousemove', lid, (e: MapLayerMouseEvent) => {
+            const f = e.features?.[0]
+            map.getCanvas().style.cursor = 'pointer'
+            if (f) hover.current?.setLngLat(e.lngLat).setHTML(hoverHtml(f)).addTo(map)
+          })
+          map.on('mouseleave', lid, () => {
+            map.getCanvas().style.cursor = ''
+            hover.current?.remove()
+          })
         })
       }
       for (const lid of added.current.get(layer.id) ?? []) {
@@ -210,6 +259,17 @@ export function MapView({ layers, fitTo }: Props) {
       }
     }
   }, [layers, ready])
+
+  // Không còn lớp nào → quay về toàn cảnh vùng dữ liệu
+  const hadLayers = useRef(false)
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready) return
+    if (layers.length === 0 && hadLayers.current) {
+      map.fitBounds(INITIAL_BOUNDS, { padding: 24, duration: 600 })
+    }
+    hadLayers.current = layers.length > 0
+  }, [layers.length, ready])
 
   // Zoom tới lớp vừa thêm
   useEffect(() => {
@@ -221,7 +281,16 @@ export function MapView({ layers, fitTo }: Props) {
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     // Chừa chỗ cho ô chú giải nằm ở góc dưới bên trái bản đồ
     const legend = container.current?.parentElement?.querySelector<HTMLElement>('.legend')
-    const padding = { top: 50, right: 50, left: 60, bottom: 40 + (legend?.offsetHeight ?? 0) }
+    const mapBox = container.current?.getBoundingClientRect()
+    const padding = { top: 60, right: 50, left: 60, bottom: 50 }
+    if (legend && mapBox) {
+      // Ô chú giải thấp thì chừa phía dưới; cao (và bản đồ đủ rộng) thì chừa bên trái để bản đồ không bị ép dẹt
+      if (legend.offsetHeight > mapBox.height * 0.35 && mapBox.width >= 900) {
+        padding.left = legend.offsetWidth + 40
+      } else {
+        padding.bottom = Math.min(legend.offsetHeight + 50, mapBox.height * 0.45)
+      }
+    }
     if (x1 - x0 < 0.02 && y1 - y0 < 0.02) {
       map.flyTo({ center: [x0, y0], zoom: 6, padding, animate: !reduce })
     } else {

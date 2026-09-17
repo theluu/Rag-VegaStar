@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { ChatPanel } from './components/ChatPanel'
 import { ConversationList } from './components/ConversationList'
 import { LayerPanel } from './components/LayerPanel'
+import { Icon } from './components/Icon'
 import { MapView, type MapLayer } from './components/MapView'
 import { api, streamChat, type Conversation, type MapDataRef } from './lib/api'
 import { layerMeta } from './lib/layers'
@@ -21,6 +22,7 @@ export default function App() {
   const [streaming, setStreaming] = useState(false)
   const [loading, setLoading] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
+  const [apiOnline, setApiOnline] = useState(true)
   const [railOpen, setRailOpen] = useState(false)
   const [mobileView, setMobileView] = useState<MobileView>('chat')
   const abortRef = useRef<AbortController | null>(null)
@@ -28,9 +30,10 @@ export default function App() {
   const refreshList = useCallback(async () => {
     try {
       setConversations(await api.listConversations())
-      setProblem(null)
+      setApiOnline(true)
     } catch (e) {
-      setProblem(`Không kết nối được API: ${(e as Error).message}`)
+      setApiOnline(false)
+      setProblem(`Không kết nối được API (${(e as Error).message}). Kiểm tra server và VITE_API_BASE_URL.`)
     }
   }, [])
 
@@ -38,12 +41,21 @@ export default function App() {
     void refreshList()
   }, [refreshList])
 
+  // Trên điện thoại, bản đồ đổi kích thước khi chuyển tab → căn lại lớp mới nhất
+  const newestLayerId = layers[layers.length - 1]?.id
+  useEffect(() => {
+    if (mobileView === 'map' && newestLayerId) {
+      const t = window.setTimeout(() => setFitTo({ id: newestLayerId, nonce: Date.now() }), 50)
+      return () => window.clearTimeout(t)
+    }
+  }, [mobileView, newestLayerId])
+
   const addLayer = useCallback(async (ref: Pick<MapDataRef, 'id' | 'kind'>, focus: boolean) => {
     const data = await api.getMapData(ref.id)
     const meta = layerMeta(data.kind, data.summary)
     setLayers((prev) => [
       ...prev.filter((l) => l.id !== data.id),
-      { id: data.id, kind: data.kind, geojson: data.geojson, bbox: data.bbox, visible: true, ...meta },
+      { id: data.id, kind: data.kind, geojson: data.geojson, bbox: data.bbox, summary: data.summary, visible: true, ...meta },
     ])
     if (focus) setFitTo({ id: data.id, nonce: Date.now() })
   }, [])
@@ -72,12 +84,22 @@ export default function App() {
     [addLayer],
   )
 
+  // Tạo hội thoại trên server khi gửi câu hỏi đầu tiên (không sinh hội thoại rỗng)
   const createConversation = useCallback(async () => {
     const conv = await api.createConversation()
+    setActiveId(conv.id)
     await refreshList()
-    await openConversation(conv.id)
     return conv.id
-  }, [openConversation, refreshList])
+  }, [refreshList])
+
+  const startNew = useCallback(() => {
+    abortRef.current?.abort()
+    setActiveId(null)
+    setTurns([])
+    setLayers([])
+    setRailOpen(false)
+    setMobileView('chat')
+  }, [])
 
   const deleteConversation = useCallback(
     async (id: string) => {
@@ -101,7 +123,10 @@ export default function App() {
       const controller = new AbortController()
       abortRef.current = controller
       setStreaming(true)
-      setTurns((prev) => [...prev, { key: `live-${Date.now()}`, question: text, steps: [], answer: '', pending: true }])
+      setTurns((prev) => [
+        ...prev,
+        { key: `live-${Date.now()}`, question: text, steps: [], answer: '', mapIds: [], pending: true },
+      ])
       try {
         await streamChat(
           convId,
@@ -121,12 +146,17 @@ export default function App() {
                 steps: turn.steps.map((s) => (s.id === r.id ? { ...s, ok: r.ok, summary: r.summary } : s)),
               })),
             onData: (d) => {
+              updateLast((turn) => ({ ...turn, mapIds: [...turn.mapIds, d.data_id] }))
               void addLayer({ id: d.data_id, kind: d.kind }, true)
             },
             onMemory: (m) =>
               updateLast((turn) => ({
                 ...turn,
-                memory: { window: m.window_turns, summary: m.summary_used, recalled: m.retrieved.map((r) => r.turn_no) },
+                memory: {
+                  window: m.window_turns,
+                  summary: m.summary_used,
+                  recalled: m.retrieved.map((r) => ({ turn: r.turn_no, score: r.score })),
+                },
               })),
             onError: (e) => updateLast((turn) => ({ ...turn, error: e.message })),
             onDone: () => updateLast((turn) => ({ ...turn, pending: false })),
@@ -151,21 +181,36 @@ export default function App() {
 
   const active = conversations.find((c) => c.id === activeId)
 
+  // Chip "xem trên bản đồ" trong câu trả lời: hiện lại lớp (nạp nếu chưa có) và phóng tới đó
+  const showLayer = useCallback(
+    (id: string) => {
+      setMobileView('map')
+      if (layers.some((l) => l.id === id)) {
+        setLayers((ls) => ls.map((l) => (l.id === id ? { ...l, visible: true } : l)))
+        setFitTo({ id, nonce: Date.now() })
+      } else {
+        void addLayer({ id, kind: 'track' }, true)
+      }
+    },
+    [addLayer, layers],
+  )
+
   return (
     <div className={`app view-${mobileView}${railOpen ? ' rail-open' : ''}`}>
       <ConversationList
         conversations={conversations}
         activeId={activeId}
+        apiOnline={apiOnline}
         onSelect={(id) => void openConversation(id)}
-        onCreate={() => void createConversation()}
+        onCreate={startNew}
         onDelete={(id) => void deleteConversation(id)}
       />
       {railOpen && (
         <button type="button" className="scrim" onClick={() => setRailOpen(false)} aria-label="Đóng danh sách hội thoại" />
       )}
       <div className="mobile-bar">
-        <button type="button" className="text-button" onClick={() => setRailOpen((o) => !o)} aria-expanded={railOpen}>
-          Hội thoại
+        <button type="button" className="icon-button" onClick={() => setRailOpen((o) => !o)} aria-expanded={railOpen} aria-label="Danh sách hội thoại">
+          <Icon name="menu" size={20} />
         </button>
         <div className="segmented" role="tablist">
           <button type="button" role="tab" aria-selected={mobileView === 'chat'} onClick={() => setMobileView('chat')}>
@@ -178,6 +223,7 @@ export default function App() {
       </div>
       <main className="chart">
         <MapView layers={layers} fitTo={fitTo} />
+        <div className="map-badge">Vùng dữ liệu 102–118°E, 6–23°N, 10–12/09/2026 (UTC)</div>
         <LayerPanel
           layers={layers}
           onToggle={(id) => setLayers((ls) => ls.map((l) => (l.id === id ? { ...l, visible: !l.visible } : l)))}
@@ -189,16 +235,19 @@ export default function App() {
       <ChatPanel
         title={active?.title ?? 'Cuộc hỏi đáp mới'}
         turns={turns}
+        layers={layers}
         streaming={streaming}
         loading={loading}
         onSend={(t) => void send(t)}
         onStop={() => abortRef.current?.abort()}
+        onShowLayer={showLayer}
       />
       {problem && (
         <div className="toast" role="alert">
+          <Icon name="alert" size={18} />
           <span>{problem}</span>
           <button type="button" className="icon-button" onClick={() => setProblem(null)} aria-label="Đóng thông báo">
-            ×
+            <Icon name="close" size={16} />
           </button>
         </div>
       )}
