@@ -1,0 +1,91 @@
+# Kịch bản hội thoại. Mỗi kịch bản chạy trong MỘT hội thoại, theo đúng thứ tự.
+# "de_bai": nguyên văn mục 7 của đề. "bien_the": đổi tàu/thời điểm/cách diễn đạt để chứng minh không hardcode.
+
+- id: s1_vessel_owner_position
+  source: de_bai
+  title: "Kịch bản 1 — Thông tin tàu, chủ sở hữu và vị trí"
+  turns:
+    - "Cho tôi thông tin về tàu KOTA GAYA."
+    - "Chủ sở hữu và các công ty quản lý của tàu này là ai?"
+    - "Công ty chủ sở hữu đăng ký đó còn những tàu nào khác trong dữ liệu?"
+    - "Lúc 21:00 ngày 11/09/2026 (UTC) tàu đó đang ở đâu?"
+
+- id: s2_track_dark_gap
+  source: de_bai
+  title: "Kịch bản 2 — Đường đi và dark gap"
+  turns:
+    - "Tàu có MMSI 563240200 đã đi từ đâu đến đâu trong ngày 11/09/2026 (UTC)?"
+    - "Trong 3 ngày dữ liệu, tàu này có lần nào mất tín hiệu AIS không? Mất ở đâu và xuất hiện lại ở đâu?"
+    - "Ngày 12/09 nó đi được quãng đường dài hơn hay ngắn hơn ngày 11/09?"
+
+- id: s3_long_memory
+  source: de_bai
+  title: "Kịch bản 3 — Bộ nhớ dài hạn vượt context window"
+  turns:
+    - "Ghi nhớ giúp tôi: tôi phụ trách hồ sơ HS-2026-117 và đang theo dõi tàu MSC MANYA."
+    # ≥ 10 lượt hỏi đáp khác (về các tàu/công ty khác) để đẩy lượt 1 ra khỏi cửa sổ ngữ cảnh
+    - "Tàu MAERSK LIRQUEN treo cờ nước nào?"
+    - "Tàu CMA CGM ADONIS dài và rộng bao nhiêu mét?"
+    - "Có bao nhiêu tàu do Yang Ming Marine Transport khai thác?"
+    - "Tàu ZHONG YONG 18 có thông tin chủ sở hữu không?"
+    - "Tàu INTERASIA TENACITY có lần nào mất tín hiệu AIS không?"
+    - "Vị trí cuối cùng của tàu MSC CAPETOWN III là ở đâu?"
+    - "Tàu PACIFIC HOPE được đóng năm nào, trọng tải bao nhiêu?"
+    - "Wan Hai Lines Singapore là chủ sở hữu đăng ký của bao nhiêu tàu?"
+    - "Tàu AL MASHRAB thuộc loại tàu gì?"
+    - "Tàu ESL SEATTLE đi được bao xa trong ngày 11/09/2026?"
+    - "Còn ngày hôm sau thì sao?"
+    - "Hồ sơ tôi nhắc từ đầu cuộc trò chuyện có mã gì, và tôi đang theo dõi tàu nào?"
+    - "Vị trí cuối cùng có trong dữ liệu của tàu đó là ở đâu, lúc nào?"
+
+- id: s4_longest_gap_missing_data
+  source: de_bai
+  title: "Kịch bản 4 — Dark gap và trả lời khi thiếu dữ liệu"
+  turns:
+    - "Tàu nào mất tín hiệu AIS lâu nhất trong dữ liệu? Mất ở đâu và xuất hiện lại ở đâu?"
+    - "Ai là chủ sở hữu đăng ký của tàu đó?"
+    - "Trước khi mất tín hiệu, tàu đang chạy với tốc độ bao nhiêu?"
+
+- id: s5_multi_tracks
+  source: de_bai
+  title: "Kịch bản 5 — Nhiều hành trình trên bản đồ"
+  turns:
+    - "Hiển thị hành trình của tất cả tàu do Evergreen Marine Corp khai thác từ ngày 10/09 đến hết 12/09/2026."
+    - "Trong số đó, tàu nào đi quãng đường dài nhất?"
+    - "Còn toàn bộ tàu chở hàng (cargo) trong ngày 11/09 thì sao?"
+
+- id: v1_typo_and_followups
+  source: bien_the
+  title: "Biến thể 1 — Tên sai chính tả, đại từ, thời điểm khác"
+  turns:
+    - "tàu esl seatle là tàu gì vậy?"
+    - "nó thuộc về công ty nào?"
+    - "công ty đó còn sở hữu tàu nào nữa không?"
+    - "6h30 sáng ngày 12/9 (giờ UTC) thì nó ở chỗ nào?"
+    - "Còn lúc 12:00 ngày 15/09/2026?"
+
+- id: v2_other_mmsi_days
+  source: bien_the
+  title: "Biến thể 2 — MMSI khác, so sánh ngày"
+  turns:
+    - "MMSI 636093181 chạy từ đâu tới đâu trong ngày 10/9/2026?"
+    - "Tàu này có tắt AIS lần nào không? Liệt kê giúp tôi."
+    - "Còn ngày hôm sau thì nó đi xa hơn hay gần hơn?"
+
+- id: v4_rephrased_gap
+  source: bien_the
+  title: "Biến thể 4 — Diễn đạt khác, hỏi dữ liệu không có"
+  turns:
+    - "Trong toàn bộ dữ liệu, lần tắt AIS dài nhất là của tàu nào, kéo dài bao lâu?"
+    - "Công ty nào quản lý kỹ thuật tàu đó?"
+    - "Lúc tín hiệu có lại thì nó chạy nhanh cỡ nào?"
+    - "Thuyền trưởng của tàu đó tên gì?"
+
+- id: v5_other_company_type
+  source: bien_the
+  title: "Biến thể 5 — Công ty và loại tàu khác"
+  turns:
+    - "Vẽ hành trình các tàu do Maersk khai thác trong ngày 11/09/2026."
+    - "tàu nào chạy xa nhất trong nhóm đó?"
+    - "Còn các tàu chở dầu trong ngày 12/09 thì sao?"
+    - "Có tàu nào tên KOTA không?"

@@ -1,0 +1,18 @@
+# Các phép kiểm tra đáp án bằng SQL trực tiếp (độc lập với tầng tool) — dùng để đối chiếu transcript.
+- {check: vessel, vessel: "KOTA GAYA"}
+- {check: owner_fleet, vessel: "KOTA GAYA", role: registered_owner}
+- {check: position_at, vessel: "KOTA GAYA", ts: "2026-09-11T21:00:00Z"}
+- {check: daily_distance, mmsi: 563240200, days: ["2026-09-11", "2026-09-12"]}
+- {check: gaps, mmsi: 563240200}
+- {check: last_position, vessel: "MSC MANYA"}
+- {check: longest_gap}
+- {check: company_tracks, company: "EVERGREEN MARINE CORP", role: operator, start: "2026-09-10", end: "2026-09-13"}
+- {check: type_day, group: cargo, day: "2026-09-11"}
+# Biến thể
+- {check: vessel, vessel: "ESL SEATTLE"}
+- {check: owner_fleet, vessel: "ESL SEATTLE", role: registered_owner}
+- {check: position_at, vessel: "ESL SEATTLE", ts: "2026-09-12T06:30:00Z"}
+- {check: daily_distance, mmsi: 636093181, days: ["2026-09-10", "2026-09-11"]}
+- {check: gaps, mmsi: 636093181}
+- {check: company_tracks, company: "MAERSK", role: operator, start: "2026-09-11", end: "2026-09-12"}
+- {check: type_day, group: tanker, day: "2026-09-12"}

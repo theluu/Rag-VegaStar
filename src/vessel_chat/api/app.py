@@ -60,7 +60,12 @@ def create_app(settings: Settings | None = None, llm: LLMClient | None = None, e
     async def health(request: Request):
         async with request.app.state.pool.acquire() as conn:
             vessels = await conn.fetchval("SELECT count(*) FROM vessels")
-        return {"status": "ok", "vessels": vessels, "model": settings.llm_model}
+        return {
+            "status": "ok",
+            "vessels": vessels,
+            "model": settings.llm_model,
+            "memory_window_turns": settings.memory_window_turns,
+        }
 
     return app
 

@@ -29,6 +29,31 @@ from .common import (
 )
 
 
+def _fmt_point(label: str, p: dict | None, offset: float | None) -> str:
+    if not p:
+        return f"không có điểm {label}"
+    return f"điểm {label} lúc {p['ts']} ({p['lat']}, {p['lon']}), lệch {offset:g} phút"
+
+
+def _position_explanation(c: dict) -> str:
+    before = _fmt_point("trước", c["before"], c["before_offset_minutes"])
+    after = _fmt_point("sau", c["after"], c["after_offset_minutes"])
+    method = c.get("method")
+    if method == "exact":
+        text = "Có điểm AIS đúng thời điểm hỏi."
+    elif method == "interpolated":
+        text = f"Vị trí là NỘI SUY tuyến tính theo thời gian giữa {before} và {after}."
+    elif method == "nearest_point":
+        text = f"Vị trí lấy theo điểm AIS gần nhất (không nội suy vì hai điểm cách nhau quá xa): {before}; {after}."
+    else:
+        text = (f"KHÔNG có dữ liệu trong phạm vi ±{c['max_offset_minutes_allowed']:g} phút quanh thời điểm hỏi: "
+                f"{before}; {after}.")
+    if c.get("in_dark_gap"):
+        g = c["in_dark_gap"]
+        text += f" Thời điểm này nằm trong một lần mất tín hiệu AIS ({g['gap_start_ts']} → {g['gap_end_ts']}, {g['duration']})."
+    return text
+
+
 @register
 class GetPositionAt(Tool):
     name = "get_position_at"
@@ -98,6 +123,7 @@ class GetPositionAt(Tool):
                 content["message"] = "Không có điểm AIS đủ gần thời điểm này (tàu có thể mất tín hiệu hoặc ở ngoài vùng dữ liệu)."
         if position:
             content["position"] = position
+        content["explanation"] = _position_explanation(content)
 
         features = []
         if position:
@@ -149,6 +175,22 @@ class GetLastPosition(Tool):
             map_data=[payload],
             focus={**vessel_focus(v), "time": pos["ts"]},
         )
+
+
+def _coverage_warnings(start, end, pts, stats, tolerance_minutes: float) -> list[str]:
+    """Cảnh báo sinh từ dữ liệu khi hành trình không phủ hết khoảng thời gian được hỏi."""
+    warnings = []
+    if minutes_between(start, pts[0].ts) > tolerance_minutes:
+        warnings.append(f"Điểm AIS đầu tiên trong khoảng hỏi là {iso(pts[0].ts)} (muộn hơn thời điểm bắt đầu {iso(start)}).")
+    if minutes_between(pts[-1].ts, end) > tolerance_minutes:
+        warnings.append(f"Điểm AIS cuối cùng trong khoảng hỏi là {iso(pts[-1].ts)} (sớm hơn thời điểm kết thúc {iso(end)}); "
+                        "sau đó không có dữ liệu (tàu có thể mất tín hiệu hoặc rời vùng dữ liệu).")
+    for g in stats["gaps"]:
+        warnings.append(f"Không có dữ liệu từ {g['from']} đến {g['to']} ({g['hours']} giờ); "
+                        f"{g['distance_nm']} hải lý của quãng đường là khoảng cách thẳng qua khe này.")
+    if warnings:
+        warnings.append("Vì vậy quãng đường chỉ phản ánh phần có dữ liệu; cần nói rõ điều này khi so sánh.")
+    return warnings
 
 
 @register
@@ -210,6 +252,9 @@ class GetTrack(Tool):
             "note": "distance_nm tính theo đường nối các điểm AIS liên tiếp; gap_distance_nm là phần đi qua các khe "
                     "không có dữ liệu (tính đường thẳng).",
         }
+        warnings = _coverage_warnings(start, end, pts, stats, s.position_max_offset_minutes)
+        if warnings:
+            content["coverage_warnings"] = warnings
         name = vessel_brief(v)["name"]
         features = [
             feature(track_geometry(pts, s.track_gap_split_hours), kind="track", name=name,

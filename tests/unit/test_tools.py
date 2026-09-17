@@ -39,6 +39,7 @@ async def test_vessel_details_with_owners_and_focus(ctx):
     r = await call(ctx, "get_vessel_details", vessel="Alpha Star")
     c = r.content
     assert c["vessel"]["mmsi"] == 111111111 and c["vessel"]["ship_type_group"] == "cargo"
+    assert c["vessel"]["deadweight_tonnes"] == 30000.0 and c["vessel"]["gross_tonnage"] == 25000.0
     assert c["ownership_available"] is True
     assert {"role": "registered_owner", "company_name": "OCEAN LINE CO LTD", "company_country": "SINGAPORE",
             "start_date": "2015-01-01"} in c["companies"]
@@ -205,3 +206,28 @@ async def test_execute_tool_errors(ctx):
     assert "error" in (await execute_tool(ctx, "get_track", "{not json")).content
     assert "error" in (await call(ctx, "get_track", vessel=BETA)).content
     assert "error" in (await call(ctx, "get_position_at", vessel=BETA, timestamp="yesterday")).content
+
+
+async def test_company_vessels_marks_vessel_under_discussion(pool, settings):
+    ctx = ToolContext(pool=pool, settings=settings, focus={"vessel": {"vessel_id": ALPHA, "name": "ALPHA STAR"}})
+    r = await call(ctx, "find_company_vessels", company_name="OCEAN LINE", role="registered_owner")
+    flagged = [v["name"] for v in r.content["vessels"] if v.get("is_vessel_under_discussion")]
+    assert flagged == ["ALPHA STAR"]
+    assert "còn 1 tàu khác" in r.content["note"]
+
+
+async def test_position_explanations(ctx):
+    interp = await call(ctx, "get_position_at", vessel=BETA, timestamp="2026-09-11T05:30:00Z")
+    assert "NỘI SUY" in interp.content["explanation"] and "lệch 30 phút" in interp.content["explanation"]
+    gap = await call(ctx, "get_position_at", vessel=ALPHA, timestamp="2026-09-10T12:00:00Z")
+    assert "KHÔNG có dữ liệu" in gap.content["explanation"]
+    assert "mất tín hiệu AIS" in gap.content["explanation"]
+
+
+async def test_track_coverage_warnings(ctx):
+    gap_day = await call(ctx, "get_track", vessel=ALPHA, start="2026-09-10", end="2026-09-10")
+    assert any("10:00:00Z" in w and "15:00:00Z" in w for w in gap_day.content["coverage_warnings"])
+    partial = await call(ctx, "get_track", vessel=ALPHA, start="2026-09-11", end="2026-09-11")
+    assert any("sớm hơn thời điểm kết thúc" in w for w in partial.content["coverage_warnings"])
+    full = await call(ctx, "get_track", vessel=BETA, start="2026-09-11", end="2026-09-11")
+    assert "coverage_warnings" not in full.content

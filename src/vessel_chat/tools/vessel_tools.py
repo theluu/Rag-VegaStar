@@ -74,8 +74,8 @@ class GetVesselDetails(Tool):
             "ship_type_detail": v["ship_type_detail_name"],
             "length_m": v["length_m"],
             "width_m": v["width_m"],
-            "dwt": v["dwt"],
-            "grt": v["grt"],
+            "deadweight_tonnes": v["dwt"],
+            "gross_tonnage": v["grt"],
             "year_built": v["year_built"],
         }
         content = {
@@ -134,9 +134,11 @@ class FindCompanyVessels(Tool):
                 exclude_id = ex["vessel_id"] if ex else None
             rows = await vessel_repo.company_vessels(conn, [company["company_norm"]], args.role, exclude_id)
 
+        current_id = (ctx.focus.get("vessel") or {}).get("vessel_id")
         vessels = [
             {**vessel_brief(r), "flag": r["flag"], "ship_type": r["ship_type_summary"],
-             "roles": sorted({x["role"] for x in r["roles"]})}
+             "roles": sorted({x["role"] for x in r["roles"]}),
+             **({"is_vessel_under_discussion": True} if r["vessel_id"] == current_id else {})}
             for r in rows
         ]
         content = {
@@ -150,4 +152,9 @@ class FindCompanyVessels(Tool):
             "list_truncated": len(vessels) > max_rows,
             "similar_companies_not_included": others,
         }
+        if any(v.get("is_vessel_under_discussion") for v in vessels):
+            content["note"] = (
+                f"Danh sách có cả tàu đang được bàn ({ctx.focus['vessel'].get('name')}). Nếu người dùng hỏi "
+                f"'tàu khác' thì không tính tàu này: còn {len(vessels) - 1} tàu khác."
+            )
         return ToolResult(content=content, focus=company_focus(company))

@@ -39,6 +39,7 @@ class ToolResult:
 class ToolContext:
     pool: asyncpg.Pool
     settings: Settings
+    focus: dict = field(default_factory=dict)  # "đối tượng đang bàn" của hội thoại (chỉ đọc)
 
 
 class ToolInputError(Exception):

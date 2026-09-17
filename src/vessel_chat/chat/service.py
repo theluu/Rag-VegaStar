@@ -72,7 +72,6 @@ class ChatService:
         self.llm = llm
         self.settings = settings
         self.memory = MemoryManager(pool, llm, embedder, settings, system_prompt)
-        self.tool_ctx = ToolContext(pool=pool, settings=settings)
         self.tool_specs = openai_tool_specs()
         self._locks: dict[str, asyncio.Lock] = {}
 
@@ -147,7 +146,8 @@ class ChatService:
                 for c in calls:
                     yield Event("tool_call", {"id": c.id, "name": c.name, "args": _parse_args(c.arguments)})
 
-                results = await asyncio.gather(*(execute_tool(self.tool_ctx, c.name, c.arguments) for c in calls))
+                tool_ctx = ToolContext(pool=self.pool, settings=s, focus=dict(focus))
+                results = await asyncio.gather(*(execute_tool(tool_ctx, c.name, c.arguments) for c in calls))
                 for c, result in zip(calls, results):
                     content = dict(result.content)
                     for payload in result.map_data:
