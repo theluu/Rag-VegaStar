@@ -2,7 +2,11 @@ import { useMemo, useState } from 'react'
 import type { Conversation } from '../lib/api'
 import { Icon } from './Icon'
 
+export type AppView = 'chat' | 'stats'
+
 interface Props {
+  view: AppView
+  onViewChange: (view: AppView) => void
   conversations: Conversation[]
   activeId: string | null
   apiOnline: boolean
@@ -23,7 +27,7 @@ function dayLabel(d: Date): string {
   return dayFmt.format(d)
 }
 
-export function ConversationList({ conversations, activeId, apiOnline, onSelect, onCreate, onDelete }: Props) {
+export function ConversationList({ view, onViewChange, conversations, activeId, apiOnline, onSelect, onCreate, onDelete }: Props) {
   const [query, setQuery] = useState('')
   const [confirming, setConfirming] = useState<string | null>(null)
 
@@ -53,6 +57,17 @@ export function ConversationList({ conversations, activeId, apiOnline, onSelect,
         </div>
       </div>
 
+      <div className="view-switch" role="tablist" aria-label="Chế độ xem">
+        <button type="button" role="tab" aria-selected={view === 'chat'} onClick={() => onViewChange('chat')}>
+          <Icon name="chat" size={16} />
+          Hỏi đáp
+        </button>
+        <button type="button" role="tab" aria-selected={view === 'stats'} onClick={() => onViewChange('stats')}>
+          <Icon name="chart" size={16} />
+          Thống kê
+        </button>
+      </div>
+
       <button type="button" className="new-button" onClick={onCreate}>
         <Icon name="plus" size={18} />
         Cuộc hỏi đáp mới
@@ -75,7 +90,7 @@ export function ConversationList({ conversations, activeId, apiOnline, onSelect,
                 const active = c.id === activeId
                 const asking = confirming === c.id
                 return (
-                  <li key={c.id} className={active ? 'is-active' : ''}>
+                  <li key={c.id} className={active && view === 'chat' ? 'is-active' : ''}>
                     <button type="button" className="conv-open" onClick={() => onSelect(c.id)} aria-current={active}>
                       <span className="conv-title">{c.title}</span>
                       <span className="conv-meta">

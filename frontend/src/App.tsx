@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ChatPanel } from './components/ChatPanel'
-import { ConversationList } from './components/ConversationList'
+import { ConversationList, type AppView } from './components/ConversationList'
 import { LayerPanel } from './components/LayerPanel'
 import { Icon } from './components/Icon'
 import { MapView, type MapLayer } from './components/MapView'
+import { StatsView } from './components/StatsView'
 import { api, streamChat, type Conversation, type MapDataRef } from './lib/api'
 import { layerMeta } from './lib/layers'
 import { buildTurns, type Turn } from './lib/transcript'
@@ -12,6 +13,9 @@ import { buildTurns, type Turn } from './lib/transcript'
 const RESTORED_LAYERS = 6
 
 type MobileView = 'chat' | 'map'
+
+const STATS_HASH = '#/thong-ke'
+const viewFromHash = (): AppView => (window.location.hash === STATS_HASH ? 'stats' : 'chat')
 
 export default function App() {
   const [conversations, setConversations] = useState<Conversation[]>([])
@@ -25,6 +29,7 @@ export default function App() {
   const [apiOnline, setApiOnline] = useState(true)
   const [railOpen, setRailOpen] = useState(false)
   const [mobileView, setMobileView] = useState<MobileView>('chat')
+  const [view, setView] = useState<AppView>(viewFromHash)
   const abortRef = useRef<AbortController | null>(null)
 
   const refreshList = useCallback(async () => {
@@ -40,6 +45,22 @@ export default function App() {
   useEffect(() => {
     void refreshList()
   }, [refreshList])
+
+  // Trang thống kê có địa chỉ riêng (#/thong-ke) để mở thẳng và dùng nút Back
+  useEffect(() => {
+    const onHash = () => setView(viewFromHash())
+    window.addEventListener('hashchange', onHash)
+    return () => window.removeEventListener('hashchange', onHash)
+  }, [])
+
+  const changeView = useCallback((next: AppView) => {
+    setRailOpen(false)
+    const hash = next === 'stats' ? STATS_HASH : ''
+    if (window.location.hash !== hash) {
+      window.history.pushState(null, '', hash || window.location.pathname + window.location.search)
+    }
+    setView(next)
+  }, [])
 
   // Trên điện thoại, bản đồ đổi kích thước khi chuyển tab → căn lại lớp mới nhất
   const newestLayerId = layers[layers.length - 1]?.id
@@ -62,6 +83,8 @@ export default function App() {
 
   const openConversation = useCallback(
     async (id: string) => {
+      changeView('chat')
+      setMobileView('chat')
       abortRef.current?.abort()
       setActiveId(id)
       setRailOpen(false)
@@ -81,7 +104,7 @@ export default function App() {
         setLoading(false)
       }
     },
-    [addLayer],
+    [addLayer, changeView],
   )
 
   // Tạo hội thoại trên server khi gửi câu hỏi đầu tiên (không sinh hội thoại rỗng)
@@ -93,13 +116,14 @@ export default function App() {
   }, [refreshList])
 
   const startNew = useCallback(() => {
+    changeView('chat')
     abortRef.current?.abort()
     setActiveId(null)
     setTurns([])
     setLayers([])
     setRailOpen(false)
     setMobileView('chat')
-  }, [])
+  }, [changeView])
 
   const deleteConversation = useCallback(
     async (id: string) => {
@@ -204,8 +228,10 @@ export default function App() {
   )
 
   return (
-    <div className={`app view-${mobileView}${railOpen ? ' rail-open' : ''}`}>
+    <div className={`app view-${mobileView} page-${view}${railOpen ? ' rail-open' : ''}`}>
       <ConversationList
+        view={view}
+        onViewChange={changeView}
         conversations={conversations}
         activeId={activeId}
         apiOnline={apiOnline}
@@ -220,6 +246,9 @@ export default function App() {
         <button type="button" className="icon-button" onClick={() => setRailOpen((o) => !o)} aria-expanded={railOpen} aria-label="Danh sách hội thoại">
           <Icon name="menu" size={20} />
         </button>
+        {view === 'stats' ? (
+          <strong className="mobile-title">Thống kê vận hành</strong>
+        ) : (
         <div className="segmented" role="tablist">
           <button type="button" role="tab" aria-selected={mobileView === 'chat'} onClick={() => setMobileView('chat')}>
             Hỏi đáp
@@ -228,8 +257,10 @@ export default function App() {
             Bản đồ{layers.length ? ` (${layers.length})` : ''}
           </button>
         </div>
+        )}
       </div>
-      <main className="chart">
+      {view === 'stats' && <StatsView onOpenConversation={(id) => void openConversation(id)} />}
+      <main className="chart" hidden={view === 'stats'}>
         <MapView layers={layers} fitTo={fitTo} />
         <div className="map-badge">Vùng dữ liệu 102–118°E, 6–23°N, 10–12/09/2026 (UTC)</div>
         <LayerPanel
