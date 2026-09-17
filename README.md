@@ -3,12 +3,12 @@
 Chatbot LLM trả lời câu hỏi tiếng Việt về 1.000 tàu (AIS 10–12/09/2026): tàu của ai, đang ở đâu, đã đi những đâu, có tắt AIS không. **Mỗi câu trả lời có chứng cứ** và được hệ thống tự đối chiếu số liệu.
 
 - **API chat streaming (SSE).** Các sự kiện gồm `token`, `tool_call`, `tool_result`, `evidence`, `verification`, `guardrail`, `data`, `memory`, `error`, `done`.
-- **Truy vấn có tham số.** LLM lấy số liệu qua 9 tool (8 tool truy vấn PostgreSQL + PostGIS, 1 tool kho tri thức); không đưa CSV vào prompt, không để LLM tự viết SQL; tool chạy trên pool DB chỉ đọc.
+- **Truy vấn có tham số.** LLM lấy số liệu qua 10 tool (9 tool truy vấn PostgreSQL + PostGIS, 1 tool kho tri thức); không đưa CSV vào prompt, không để LLM tự viết SQL; tool chạy trên pool DB chỉ đọc.
 - **Chứng cứ và kiểm chứng.** Mỗi kết quả tool có mã `E#` (bảng nguồn, tham số, giá trị gốc); câu trả lời trích `[E#]`; hệ thống đối chiếu mọi con số với dữ liệu đã truy vấn.
 - **RAG.** Kho tri thức nghiệp vụ hàng hải (AIS, loại tàu, dark gap, MMSI/IMO, vai trò chủ sở hữu, đơn vị đo), tìm kiếm lai vector + từ khoá (RRF), có trích dẫn.
 - **Guardrails.** Chặn prompt injection trước khi gọi LLM, kiểm duyệt nội dung, che secret và chặn lộ prompt ngay trên stream, từ chối chủ đề ngoài phạm vi.
 - **Bộ nhớ dài hạn.** Kết hợp trạng thái hội thoại, tóm tắt cuốn chiếu, truy xuất vector (pgvector) và cửa sổ nguyên văn cấu hình được.
-- **Harness đánh giá.** Câu hỏi sinh từ dữ liệu thật (đáp án bằng SQL) cùng các ca red-team; **42/42 ca đạt**.
+- **Harness đánh giá.** Câu hỏi sinh từ dữ liệu thật (đáp án bằng SQL) cùng các ca red-team; **45/45 ca đạt**.
 - **Đăng nhập.** Màn hình đăng nhập (tài khoản cấu hình trong `AUTH_USERS`, mặc định `demo` / `demo`); API chỉ phục vụ khi có token phiên hợp lệ.
 - **Bảo mật và vận hành.** API key, rate limit, header bảo mật và CSP, `/metrics` Prometheus, log JSON, cache kết quả tool, container không chạy root.
 - **Trang Thống kê vận hành.** Số lượt, tỉ lệ thành công, chi phí, độ trễ, công cụ, cache, guardrail, tỉ lệ trích chứng cứ, RAG, kết quả harness và quy mô dữ liệu; đọc từ cơ sở dữ liệu nên còn nguyên sau khi khởi động lại.
@@ -62,7 +62,7 @@ Chatbot LLM trả lời câu hỏi tiếng Việt về 1.000 tàu (AIS 10–12/0
 | N3 | ✅ | `GET /tracks` trả FeatureCollection nhiều tàu, có phân trang. Hỏi qua chat ("hành trình tất cả tàu do X khai thác", "toàn bộ tàu cargo ngày 11/09"): 484 tàu, 35,7 nghìn điểm vẽ bằng WebGL. LLM chỉ nhận bản tóm tắt. |
 | D1 | ✅ | README này, `.env.example` giải thích mọi biến, ví dụ `curl`. |
 | D2 | ✅ | `docs/research.md`, `docs/architecture.md`. |
-| D3 | ✅ | 186 test pytest (tầng truy vấn, tool, bộ nhớ, guardrail, RAG, chứng cứ, bảo mật, đăng nhập, thống kê, tích hợp API) + 16 test frontend; `results/` chứa transcript kịch bản, đáp án SQL và báo cáo harness đánh giá. |
+| D3 | ✅ | 189 test pytest (tầng truy vấn, tool, bộ nhớ, guardrail, RAG, chứng cứ, bảo mật, đăng nhập, thống kê, tích hợp API) + 17 test frontend; `results/` chứa transcript kịch bản, đáp án SQL và báo cáo harness đánh giá. |
 
 ### Mở rộng cho sản phẩm AI
 
@@ -199,8 +199,8 @@ Test dùng PostgreSQL thật: database `vessel_test` được container DB tạo
 
 ```bash
 docker compose up -d db
-.venv/bin/pytest -q              # 186 test: truy vấn, tool, bộ nhớ, guardrail, RAG, chứng cứ, bảo mật, đăng nhập, thống kê, API/SSE
-cd frontend && npm test          # 16 test: bộ đọc SSE, dựng transcript, nhãn tham số, liên kết chứng cứ, định dạng thống kê, phiên đăng nhập
+.venv/bin/pytest -q              # 189 test: truy vấn, tool, bộ nhớ, guardrail, RAG, chứng cứ, bảo mật, đăng nhập, thống kê, API/SSE
+cd frontend && npm test          # 17 test: bộ đọc SSE, dựng transcript, nhãn tham số, liên kết chứng cứ, định dạng thống kê, phiên đăng nhập
 ```
 
 ## Harness đánh giá
@@ -214,7 +214,7 @@ export API_USERNAME=demo API_PASSWORD=demo                                     #
   .venv/bin/python evals/run.py --cases evals/cases.static.yaml /tmp/cases.yaml    # bộ câu hỏi mới
 ```
 
-Exit code khác 0 khi tỉ lệ đạt dưới ngưỡng, nên dùng được trong CI. Kết quả hiện tại: **42/42** (seed 7) và **26/26** (seed 21); khoảng 0,0013 USD mỗi ca.
+Exit code khác 0 khi tỉ lệ đạt dưới ngưỡng, nên dùng được trong CI. Kết quả hiện tại: **45/45** (seed 7, gồm 3 ca đếm/liệt kê tàu) và **26/26** (seed 21, bộ câu hỏi trước khi có nhóm này); khoảng 0,0015 USD mỗi ca.
 
 ## Chạy lại kịch bản và đối chiếu đáp án
 
@@ -234,7 +234,7 @@ src/vessel_chat/
   loader.py, schema.sql  nạp dữ liệu và schema
   normalize.py, geo.py   chuẩn hoá tên, nhóm loại tàu; hình học hành trình
   repositories/          SQL có tham số (tàu, vị trí, dark gap, hội thoại, bộ nhớ, dữ liệu bản đồ)
-  tools/                 9 tool cho LLM (schema Pydantic → JSON schema) + cache
+  tools/                 10 tool cho LLM (schema Pydantic → JSON schema) + cache
   rag/                   chia đoạn, ingest, tìm kiếm lai
   guardrails/            kiểm tra đầu vào, lọc và kiểm chứng đầu ra
   llm/                   client OpenAI (chat, embedding, moderation) và prompt

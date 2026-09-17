@@ -124,7 +124,7 @@ Nguyên tắc chung: chỉ thêm một hệ thống lưu trữ khi PostgreSQL kh
 | Kho tri thức (RAG) | vector (pgvector HNSW) + full-text (tsvector, bỏ dấu), gộp RRF | 31 đoạn |
 | MMSI, IMO, hô hiệu | chỉ mục B-tree, khớp chính xác | vài ms |
 
-- **Kết quả hiện tại đã đủ:** truy vấn công cụ mất 1–80 ms, độ trễ chủ yếu nằm ở LLM (khoảng 4 giây); harness đạt 42/42, kể cả các ca tên sai chính tả và câu hỏi kiến thức.
+- **Kết quả hiện tại đã đủ:** truy vấn công cụ mất 1–80 ms, độ trễ chủ yếu nằm ở LLM (khoảng 4 giây); harness đạt 45/45, kể cả các ca tên sai chính tả và câu hỏi kiến thức.
 - **Chi phí nếu thêm:** dịch vụ JVM khoảng 1–2 GB RAM, cấu hình bảo mật riêng, pipeline đồng bộ từ PostgreSQL và nguy cơ lệch dữ liệu giữa hai nơi.
 - **Khi nào nên dùng:** tìm kiếm toàn văn trên khối tài liệu lớn (tin tức hàng hải, danh sách trừng phạt, báo cáo kiểm tra cảng, hồ sơ công ty; hàng triệu văn bản, nhiều ngôn ngữ), hoặc danh bạ tàu/công ty hàng triệu bản ghi cần gợi ý khi gõ, lọc nhiều tiêu chí và thống kê theo nhóm.
 - **Lộ trình:** tối ưu PostgreSQL trước (`unaccent`, HNSW, reranker), rồi Meilisearch/Typesense nếu cần công cụ tìm kiếm nhẹ, cuối cùng mới OpenSearch/Elasticsearch, đồng bộ qua hàng đợi (CDC). Dữ liệu AIS theo thời gian hợp với TimescaleDB hoặc ClickHouse hơn là Elasticsearch.

@@ -18,7 +18,7 @@ flowchart LR
     CS["ChatService<br/>vòng lặp LLM ↔ tool"]
     GO["Guardrail đầu ra<br/>che secret · chặn lộ prompt<br/>đối chiếu số liệu · chứng cứ"]
     MM["MemoryManager<br/>focus + tóm tắt + vector + cửa sổ"]
-    TR["ToolRegistry<br/>9 tool · cache LRU+TTL"]
+    TR["ToolRegistry<br/>10 tool · cache LRU+TTL"]
     RAG["RAG<br/>hybrid vector + từ khoá (RRF)"]
     REPO["repositories<br/>SQL có tham số"]
   end
@@ -250,6 +250,7 @@ erDiagram
 | `get_track` | `vessel`, `start`, `end` | Điểm đầu/cuối, số điểm, điểm nhiễu bị loại, quãng đường, tốc độ TB, khe, cảng đích khai báo, `coverage_warnings` | đường + điểm đầu/cuối |
 | `get_dark_gaps` | `vessel?`, `start?`, `end?`, `order_by`, `limit` | Thời gian, độ dài, vị trí mất/có lại, khoảng cách, tốc độ trước và sau | điểm mất/lại + đường nét đứt |
 | `get_multi_tracks` | `start`, `end`, `company_name?`, `role?`, `ship_type_group?` | **Chỉ tóm tắt:** số tàu, số điểm, bbox, tổng quãng đường, xếp hạng quãng đường | FeatureCollection nhiều tàu |
+| `list_vessels` | `ship_type_group?`, `flag?`, `name_contains?`, `order_by`, `limit` (≤ 30), `offset` | Tổng số tàu, số tàu khớp, phân bố theo loại và cờ, một trang danh sách (số thứ tự, tên, loại, cờ), `has_more` / `next_offset` | – |
 | `search_knowledge` | `query` | Các đoạn tài liệu nghiệp vụ liên quan kèm trích dẫn `file › mục` | – |
 
 Tham số `vessel` nhận tên, MMSI, IMO, callsign hoặc `vessel_id`, và được phân giải bởi `resolve_vessel`. Kết quả phân giải là một trong ba trường hợp: một tàu duy nhất, `ambiguous` (kèm ứng viên) hoặc `not_found`. Các thông báo như `explanation` và `coverage_warnings` được **sinh từ dữ liệu** (không viết sẵn theo kịch bản), để model nhỏ truyền đạt đúng các cảnh báo quan trọng.
@@ -288,7 +289,7 @@ Mọi quyết định phát sự kiện `guardrail`, lưu trong `meta.guardrail`
 - `generate.py`: sinh ca từ dữ liệu thật với seed (thông tin tàu, MMSI, chủ sở hữu, vị trí tại thời điểm, quãng đường trong ngày, vị trí cuối, số lần mất tín hiệu, đội tàu của công ty, lần tắt AIS dài nhất, số tàu dầu có dữ liệu); đáp án tính bằng SQL/PostGIS độc lập.
 - `cases.static.yaml`: kiến thức (RAG), hội thoại nhiều lượt (đại từ, ghi nhớ), red-team (bỏ qua chỉ dẫn EN/VI, đòi khoá, đổi vai, SQL injection trong tên tàu, dán kết quả tool giả), ngoài phạm vi, thiếu dữ liệu.
 - `run.py`: chạy qua API SSE, chấm `tools / facts / grounded / citations / refusal / no_error`, đo độ trễ và chi phí, tự chờ khi 429, ghi `results/eval_report.{md,json}`, exit code ≠ 0 dưới `--min-pass-rate` (dùng trong CI).
-- Kết quả: **42/42** ca (seed 7) và **26/26** ca sinh với seed khác (21). Harness đã phát hiện và giúp sửa: model tin "kết quả tool" do người dùng dán vào; quy tắc phạm vi quá tay; model quên trích chứng cứ; dung sai chấm số nhỏ.
+- Kết quả: **45/45** ca (seed 7, gồm nhóm đếm/liệt kê tàu) và **26/26** ca sinh với seed khác (21, trước khi thêm nhóm này). Harness đã phát hiện và giúp sửa: model tin "kết quả tool" do người dùng dán vào; quy tắc phạm vi quá tay; model quên trích chứng cứ; dung sai chấm số nhỏ.
 
 ## 10. Bảo mật, vận hành và hiệu năng
 
@@ -354,19 +355,19 @@ Khi bật `AUTH_USERS` hoặc `API_KEYS`, mọi route trừ `/health`, `/auth/lo
 - **Guardrail đầu vào là heuristic**, có thể bỏ lọt cách diễn đạt mới; các lớp sau (tool chỉ đọc, kiểm chứng số liệu, lọc đầu ra) giới hạn thiệt hại.
 - **Kiểm chứng số liệu có thể báo nhầm** với phép tính phức tạp hơn tổng/hiệu/tỉ lệ; chỉ cảnh báo, không chặn.
 - **Rate limit và cache nằm trong tiến trình** — nhiều bản API cần Redis.
-- **Chỉ có API key dùng chung**, chưa có tài khoản người dùng và phân quyền theo hội thoại.
+- **Tài khoản cấu hình sẵn** (`AUTH_USERS`) và API key dùng chung; chưa có quản lý người dùng, OIDC và phân quyền theo hội thoại.
 
 ## 15. Độ trễ và chi phí
 
-Đo trên 42 ca của harness (`results/eval_report.md`) và 43 lượt kịch bản (`results/README.md`), gpt-4o-mini:
+Đo trên 45 ca của harness (`results/eval_report.md`) và 43 lượt kịch bản (`results/README.md`), gpt-4o-mini:
 
 | Chỉ số | Giá trị |
 |---|---|
-| Thời gian tới token đầu tiên (trung vị / p95) | 4,1 s / 4,8 s — gồm moderation, 1–2 lần gọi LLM khi có tool và đoạn giữ lại 120 ký tự của guardrail |
-| Thời gian toàn lượt (trung vị / p95) | 4,7 s / 7,5 s |
+| Thời gian tới token đầu tiên (trung vị / p95) | 4,9 s / 5,8 s — gồm moderation, 1–2 lần gọi LLM khi có tool và đoạn giữ lại 120 ký tự của guardrail |
+| Thời gian toàn lượt (trung vị / p95) | 5,4 s / 8,4 s |
 | Truy vấn tool | 1–80 ms; `get_multi_tracks` 1000 tàu × 3 ngày ≈ 2 s (0,1 ms khi trúng cache) |
-| Token vào / ra trung bình mỗi lượt | ~9–10 nghìn / ~200 (system prompt + schema 9 tool ≈ 4 nghìn, còn lại là ngữ cảnh và kết quả tool) |
-| Chi phí mỗi ca đánh giá (0,15 / 0,60 USD cho 1 triệu token) | ≈ 0,0013 USD; embedding, moderation (miễn phí) và tóm tắt không đáng kể |
+| Token vào / ra trung bình mỗi lượt | ~9 nghìn / ~140 (system prompt + schema 10 tool ≈ 4,5 nghìn, còn lại là ngữ cảnh và kết quả tool) |
+| Chi phí mỗi ca đánh giá (0,15 / 0,60 USD cho 1 triệu token) | ≈ 0,0015 USD; embedding, moderation (miễn phí) và tóm tắt không đáng kể |
 
 Có thể giảm tiếp: OpenAI tự cache prefix ≥ 1024 token (system prompt + schema tool cố định ở đầu), kết quả tool cũ trong cửa sổ đã được rút gọn, và cache kết quả tool tránh truy vấn lặp.
 
