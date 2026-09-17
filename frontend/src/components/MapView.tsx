@@ -223,7 +223,7 @@ export function MapView({ layers, fitTo }: Props) {
     const legend = container.current?.parentElement?.querySelector<HTMLElement>('.legend')
     const padding = { top: 50, right: 50, left: 60, bottom: 40 + (legend?.offsetHeight ?? 0) }
     if (x1 - x0 < 0.02 && y1 - y0 < 0.02) {
-      map.flyTo({ center: [x0, y0], zoom: 8, padding, animate: !reduce })
+      map.flyTo({ center: [x0, y0], zoom: 6, padding, animate: !reduce })
     } else {
       map.fitBounds([x0, y0, x1, y1], { padding, maxZoom: 9, animate: !reduce })
     }

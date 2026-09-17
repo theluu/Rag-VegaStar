@@ -22,6 +22,7 @@ services:
       # Trong mạng compose, API nói chuyện với DB qua tên service `db`
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       DATA_DIR: /app/data
+      CORS_ORIGINS: ${CORS_ORIGINS}
     volumes:
       - ./data:/app/data:ro
       - ./results:/app/results

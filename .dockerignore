@@ -1,0 +1,12 @@
+.git
+.venv
+.env
+data
+frontend
+results
+tests
+docs
+.playwright-mcp
+**/__pycache__
+*.egg-info
+*.docx

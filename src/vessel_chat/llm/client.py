@@ -4,6 +4,7 @@ ChatService chỉ phụ thuộc vào Protocol ở đây → test dùng bản gi�
 viết lớp mới cùng giao diện.
 """
 
+import os
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from typing import Literal, Protocol
@@ -40,6 +41,9 @@ class Embedder(Protocol):
 
 def _client(settings: Settings) -> AsyncOpenAI:
     settings.require("openai_api_key")
+    # SDK tự đọc OPENAI_BASE_URL từ môi trường; biến rỗng (vd. từ env_file) sẽ làm hỏng URL → bỏ đi
+    if not os.environ.get("OPENAI_BASE_URL", "x").strip():
+        os.environ.pop("OPENAI_BASE_URL")
     return AsyncOpenAI(
         api_key=settings.openai_api_key,
         base_url=settings.openai_base_url or None,
