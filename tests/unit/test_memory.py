@@ -118,3 +118,30 @@ async def test_scheduled_work_can_be_awaited(pool, manager):
     await manager.wait_idle(cid)
     async with pool.acquire() as conn:
         assert await mem_repo.max_chunk_turn(conn, cid) == 1
+
+
+async def test_wait_idle_does_not_block_on_slow_summary(pool, settings):
+    import asyncio
+
+    class SlowSummaryLLM(ScriptedLLM):
+        async def complete(self, messages, max_tokens=None):
+            await asyncio.sleep(3)
+            return "tóm tắt chậm"
+
+    m = MemoryManager(pool, SlowSummaryLLM(), HashEmbedder(settings.embedding_dim), settings, system_prompt="SYS")
+    async with pool.acquire() as conn:
+        cid = (await conv_repo.create_conversation(conn, "slow"))["id"]
+        for t in (1, 2, 3):
+            await conv_repo.add_message(conn, cid, t, "user", f"q{t}")
+            await conv_repo.add_message(conn, cid, t, "assistant", f"a{t}")
+    for t in (1, 2, 3):
+        m.schedule_after_turn(cid, t)
+    started = asyncio.get_running_loop().time()
+    await m.wait_idle(cid)
+    assert asyncio.get_running_loop().time() - started < 2  # chỉ chờ phần nhúng
+    async with pool.acquire() as conn:
+        assert await mem_repo.max_chunk_turn(conn, cid) == 3
+    await m.close()
+    async with pool.acquire() as conn:
+        conv = await conv_repo.get_conversation(conn, cid)
+    assert conv["summary"] == "tóm tắt chậm" and conv["summary_upto_turn"] == 1

@@ -6,9 +6,9 @@ Prompt mỗi lượt:
     [N lượt gần nhất nguyên văn (kể cả tool call/kết quả, kết quả cũ bị rút gọn)]
     [câu hỏi hiện tại]
 
-Sau mỗi lượt (chạy nền):
-    - nhúng lượt vừa xong vào memory_chunks (luôn luôn, chi phí rất nhỏ)
-    - các lượt vừa rời khỏi cửa sổ được gộp vào bản tóm tắt bằng LLM
+Sau mỗi lượt (chạy nền, tuần tự theo từng hội thoại):
+    - nhúng lượt vừa xong vào memory_chunks (luôn luôn, chi phí rất nhỏ) — lượt sau chờ bước này
+    - các lượt vừa rời khỏi cửa sổ được gộp vào bản tóm tắt bằng LLM — không chặn lượt sau
 Truy xuất vector chỉ xét các lượt cũ hơn cửa sổ nguyên văn → không lặp lại nội dung đã có.
 """
 
@@ -103,7 +103,8 @@ class MemoryManager:
         self.embedder = embedder
         self.settings = settings
         self.system_prompt = system_prompt
-        self._tasks: dict[str, asyncio.Task] = {}
+        self._tasks: dict[str, asyncio.Task] = {}  # nhúng vector
+        self._summary_tasks: dict[str, asyncio.Task] = {}  # tóm tắt
 
     # ------------------------------------------------------------------ dựng ngữ cảnh
     async def build_context(self, conv_id: str, user_text: str, current_turn: int) -> BuiltContext:
@@ -157,24 +158,29 @@ class MemoryManager:
         return BuiltContext(messages=messages, window_turns=kept, summary_used=bool(summary), retrieved=retrieved)
 
     # ------------------------------------------------------------------ sau mỗi lượt
-    async def after_turn(self, conv_id: str, turn_no: int) -> None:
-        s = self.settings
+    async def embed_turn(self, conv_id: str, turn_no: int) -> None:
+        """Nhúng lượt vừa xong vào vector DB (nhanh; lượt sau chờ bước này)."""
         async with self.pool.acquire() as conn:
             rows = await conv_repo.messages_between_turns(conn, conv_id, turn_no, turn_no)
-            conv = await conv_repo.get_conversation(conn, conv_id)
-        if not rows or conv is None:
+        if not rows:
             return
-
         text = turn_text(turn_no, rows)
         [vec] = await self.embedder.embed([text])
         async with self.pool.acquire() as conn:
             await mem_repo.add_chunk(conn, conv_id, turn_no, text, vec)
 
+    async def update_summary(self, conv_id: str, turn_no: int) -> None:
+        """Gộp các lượt vừa rời cửa sổ vào bản tóm tắt (chậm; chạy nền, không chặn lượt sau).
+
+        Trong lúc tóm tắt chưa xong, các lượt đó vẫn truy xuất được qua vector nên không mất thông tin.
+        """
+        s = self.settings
         compact_upto = turn_no - s.memory_window_turns
-        start = conv["summary_upto_turn"] + 1
-        if compact_upto < start:
-            return
         async with self.pool.acquire() as conn:
+            conv = await conv_repo.get_conversation(conn, conv_id)
+            if conv is None or compact_upto <= conv["summary_upto_turn"]:
+                return
+            start = conv["summary_upto_turn"] + 1
             old_rows = await conv_repo.messages_between_turns(conn, conv_id, start, compact_upto)
         turns_text = "\n\n".join(turn_text(t, r) for t, r in sorted(_group_by_turn(old_rows).items()))
         summary = await self.llm.complete(
@@ -187,22 +193,34 @@ class MemoryManager:
         async with self.pool.acquire() as conn:
             await conv_repo.update_summary(conn, conv_id, summary.strip(), compact_upto)
 
-    def schedule_after_turn(self, conv_id: str, turn_no: int) -> None:
-        previous = self._tasks.get(conv_id)
+    async def after_turn(self, conv_id: str, turn_no: int) -> None:
+        await self.embed_turn(conv_id, turn_no)
+        await self.update_summary(conv_id, turn_no)
+
+    def _chain(self, registry: dict[str, asyncio.Task], conv_id: str, work, *deps: asyncio.Task | None) -> asyncio.Task:
+        """Chạy `work` sau các tác vụ trước đó của cùng hội thoại (giữ thứ tự, không chạy chồng)."""
+        previous = registry.get(conv_id)
 
         async def run() -> None:
-            if previous is not None:
-                await asyncio.gather(previous, return_exceptions=True)
+            waiting = [t for t in (previous, *deps) if t is not None]
+            if waiting:
+                await asyncio.gather(*waiting, return_exceptions=True)
             try:
-                await self.after_turn(conv_id, turn_no)
+                await work()
             except Exception:  # noqa: BLE001
-                log.exception("Cập nhật bộ nhớ thất bại (hội thoại %s, lượt %s)", conv_id, turn_no)
+                log.exception("Cập nhật bộ nhớ thất bại (hội thoại %s)", conv_id)
 
         task = asyncio.create_task(run())
-        self._tasks[conv_id] = task
-        task.add_done_callback(lambda t: self._tasks.get(conv_id) is t and self._tasks.pop(conv_id, None))
+        registry[conv_id] = task
+        task.add_done_callback(lambda t: registry.get(conv_id) is t and registry.pop(conv_id, None))
+        return task
+
+    def schedule_after_turn(self, conv_id: str, turn_no: int) -> None:
+        embed = self._chain(self._tasks, conv_id, lambda: self.embed_turn(conv_id, turn_no))
+        self._chain(self._summary_tasks, conv_id, lambda: self.update_summary(conv_id, turn_no), embed)
 
     async def wait_idle(self, conv_id: str) -> None:
+        """Chờ bước nhúng của lượt trước (không chờ tóm tắt)."""
         task = self._tasks.get(conv_id)
         if task is None:
             return
@@ -212,6 +230,6 @@ class MemoryManager:
             log.warning("Hết thời gian chờ cập nhật bộ nhớ của hội thoại %s", conv_id)
 
     async def close(self) -> None:
-        tasks = list(self._tasks.values())
+        tasks = [*self._tasks.values(), *self._summary_tasks.values()]
         if tasks:
             await asyncio.wait(tasks, timeout=self.settings.memory_compaction_wait_seconds)

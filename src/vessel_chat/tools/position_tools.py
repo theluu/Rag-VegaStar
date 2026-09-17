@@ -285,8 +285,13 @@ class GetMultiTracks(Tool):
     class Args(BaseModel):
         start: str = Field(description="Bắt đầu, " + TIME_ARG_DESC)
         end: str = Field(description="Kết thúc, " + TIME_ARG_DESC + " Chỉ ghi ngày nghĩa là hết ngày đó.")
-        company_name: str | None = Field(default=None, description="Lọc theo công ty")
-        role: Role | None = Field(default=None, description="Vai trò của công ty; 'khai thác' = operator")
+        company_name: str | None = Field(
+            default=None,
+            description="Lọc theo công ty — chỉ đặt khi yêu cầu hiện tại vẫn nói về công ty đó "
+                        "('toàn bộ tàu cargo' thì KHÔNG đặt)",
+        )
+        role: Role | None = Field(default=None, description="Vai trò của công ty (chỉ dùng cùng company_name); "
+                                                            "'khai thác' = operator")
         ship_type_group: ShipTypeGroup | None = Field(default=None, description="Lọc theo nhóm loại tàu")
 
     async def run(self, ctx: ToolContext, args: Args) -> ToolResult:
@@ -302,7 +307,7 @@ class GetMultiTracks(Tool):
             vessels = await vessel_repo.vessels_by_filter(
                 conn,
                 company_norms=[company["company_norm"]] if company else None,
-                role=args.role,
+                role=args.role if company else None,
                 ship_type_group=args.ship_type_group,
                 limit=s.multi_track_max_vessels + 1,
             )
@@ -312,7 +317,7 @@ class GetMultiTracks(Tool):
 
         fc, per_vessel, totals = build_multi_tracks(vessels, positions, s, s.multi_track_max_points)
         max_rows = s.tool_result_max_rows
-        filters = {"company": company["company_norm"] if company else None, "role": args.role,
+        filters = {"company": company["company_norm"] if company else None, "role": args.role if company else None,
                    "ship_type_group": args.ship_type_group, **time_range_json(start, end)}
         content = {
             "status": "ok" if per_vessel else "no_data",
