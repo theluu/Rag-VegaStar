@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     embedding_dim: int = 1536
     llm_temperature: float = 0.1
     llm_timeout_seconds: float = 60.0
+    llm_max_retries: int = 4
     summary_max_tokens: int = 600
 
     # --- Bộ nhớ hội thoại ---

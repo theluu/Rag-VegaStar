@@ -30,7 +30,9 @@ class LLMEvent:
 
 
 class LLMClient(Protocol):
-    def stream_chat(self, messages: list[dict], tools: list[dict] | None = None) -> AsyncIterator[LLMEvent]: ...
+    def stream_chat(
+        self, messages: list[dict], tools: list[dict] | None = None, tool_choice: str = "auto"
+    ) -> AsyncIterator[LLMEvent]: ...
 
     async def complete(self, messages: list[dict], max_tokens: int | None = None) -> str: ...
 
@@ -48,7 +50,7 @@ def _client(settings: Settings) -> AsyncOpenAI:
         api_key=settings.openai_api_key,
         base_url=settings.openai_base_url or None,
         timeout=settings.llm_timeout_seconds,
-        max_retries=2,
+        max_retries=settings.llm_max_retries,  # SDK tự lùi theo cấp số nhân, tôn trọng Retry-After
     )
 
 
@@ -58,10 +60,12 @@ class OpenAILLM:
         self.settings = settings
         self.client = _client(settings)
 
-    async def stream_chat(self, messages: list[dict], tools: list[dict] | None = None) -> AsyncIterator[LLMEvent]:
+    async def stream_chat(
+        self, messages: list[dict], tools: list[dict] | None = None, tool_choice: str = "auto"
+    ) -> AsyncIterator[LLMEvent]:
         kwargs = {}
         if tools:
-            kwargs.update(tools=tools, tool_choice="auto", parallel_tool_calls=True)
+            kwargs.update(tools=tools, tool_choice=tool_choice, parallel_tool_calls=True)
         stream = await self.client.chat.completions.create(
             model=self.settings.llm_model,
             messages=messages,

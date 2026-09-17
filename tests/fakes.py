@@ -45,6 +45,7 @@ class ScriptedLLM:
         self.router = router  # fn(messages) -> list[Step] khi hết steps
         self.requests: list[list[dict]] = []
         self.summaries: list[str] = []
+        self.tool_choices: list[str | None] = []
         self._counter = 0
 
     def _next(self, messages) -> Step:
@@ -54,8 +55,9 @@ class ScriptedLLM:
             return Step(text="(hết kịch bản)")
         return self.steps.pop(0)
 
-    async def stream_chat(self, messages: list[dict], tools: list[dict] | None = None):
+    async def stream_chat(self, messages: list[dict], tools: list[dict] | None = None, tool_choice: str = "auto"):
         self.requests.append(json.loads(json.dumps(messages, default=str)))
+        self.tool_choices.append(tool_choice if tools else None)
         step = self._next(messages)
         if step.delay:
             await asyncio.sleep(step.delay)

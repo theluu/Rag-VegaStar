@@ -19,7 +19,7 @@ SECRET_PATTERNS = [
 ]
 REDACTED = "[đã ẩn]"
 LEAK_NOTICE = "[đã ẩn nội dung cấu hình hệ thống]"
-LEAK_WINDOW = 48
+LEAK_WINDOW = 64
 
 
 def _collapse(text: str) -> str:
@@ -122,7 +122,7 @@ def _interpret(token: str) -> list[tuple[float, int]]:
     return [(float(token), 0)]
 
 
-def extract_answer_numbers(text: str) -> list[AnswerNumber]:
+def extract_answer_numbers(text: str, include_small: bool = False) -> list[AnswerNumber]:
     cleaned = _DATE_TIME.sub(" ", text)
     out = []
     for m in _NUMBER_TOKEN.finditer(cleaned):
@@ -131,7 +131,7 @@ def extract_answer_numbers(text: str) -> list[AnswerNumber]:
         if not values:
             continue
         # Bỏ số nguyên nhỏ (1–99): số thứ tự, "3 ngày", "2 lần"… quá dễ trùng để có ý nghĩa kiểm tra
-        if all(d == 0 and abs(v) < 100 for v, d in values):
+        if not include_small and all(d == 0 and abs(v) < 100 for v, d in values):
             continue
         out.append(AnswerNumber(token, values))
     return out

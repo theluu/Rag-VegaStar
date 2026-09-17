@@ -1,0 +1,289 @@
+# Sinh tự động bởi evals/generate.py (seed=7). Không sửa tay.
+- id: gen-vessel-info-1
+  category: vessel_info
+  turns:
+  - Tàu MOKSHA treo cờ nước nào và dài bao nhiêu mét?
+  expect:
+    tools:
+    - get_vessel_details
+    contains_any:
+    - Hong Kong
+    - Hồng Kông
+    numbers:
+    - value: 189.99
+      tol: 0.5
+    citations: true
+- id: gen-mmsi-1
+  category: identifier_lookup
+  turns:
+  - Tàu có MMSI 314280000 tên là gì, thuộc loại tàu nào?
+  expect:
+    contains:
+    - MOKSHA
+    citations: true
+- id: gen-vessel-info-2
+  category: vessel_info
+  turns:
+  - Tàu SYNERGY KEELUNG treo cờ nước nào và dài bao nhiêu mét?
+  expect:
+    tools:
+    - get_vessel_details
+    contains_any:
+    - Hong Kong
+    - Hồng Kông
+    numbers:
+    - value: 260.0
+      tol: 0.5
+    citations: true
+- id: gen-mmsi-2
+  category: identifier_lookup
+  turns:
+  - Tàu có MMSI 209795000 tên là gì, thuộc loại tàu nào?
+  expect:
+    contains:
+    - SYNERGY KEELUNG
+    citations: true
+- id: gen-vessel-info-3
+  category: vessel_info
+  turns:
+  - Tàu HONG MAO treo cờ nước nào và dài bao nhiêu mét?
+  expect:
+    tools:
+    - get_vessel_details
+    contains_any:
+    - China
+    - Trung Quốc
+    numbers:
+    - value: 99.959999
+      tol: 0.5
+    citations: true
+- id: gen-mmsi-3
+  category: identifier_lookup
+  turns:
+  - Tàu có MMSI 413298170 tên là gì, thuộc loại tàu nào?
+  expect:
+    contains:
+    - HONG MAO
+    citations: true
+- id: gen-owner-1
+  category: ownership
+  turns:
+  - Chủ sở hữu đăng ký của tàu HOANH SON SKY là công ty nào?
+  expect:
+    tools:
+    - get_vessel_details
+    contains:
+    - WORLD SEA TRANSPORTATION CO
+    citations: true
+- id: gen-position-1
+  category: position_at
+  turns:
+  - Lúc 11:12:04 ngày 11/09/2026 (UTC) tàu HOANH SON SKY ở đâu?
+  expect:
+    tools:
+    - get_position_at
+    citations: true
+    numbers:
+    - value: 10.9339
+      tol: 0.002
+    - value: 109.9666
+      tol: 0.002
+- id: gen-owner-2
+  category: ownership
+  turns:
+  - Chủ sở hữu đăng ký của tàu EVER LIBRA là công ty nào?
+  expect:
+    tools:
+    - get_vessel_details
+    contains:
+    - EVERGREEN MARINE CORP
+    citations: true
+- id: gen-position-2
+  category: position_at
+  turns:
+  - Lúc 11:59:55 ngày 12/09/2026 (UTC) tàu EVER LIBRA ở đâu?
+  expect:
+    tools:
+    - get_position_at
+    citations: true
+    numbers:
+    - value: 15.4591
+      tol: 0.002
+    - value: 113.0442
+      tol: 0.002
+- id: gen-owner-3
+  category: ownership
+  turns:
+  - Chủ sở hữu đăng ký của tàu GREEN SEPETIBA là công ty nào?
+  expect:
+    tools:
+    - get_vessel_details
+    contains:
+    - XIANG H103 INTERNATIONAL SHIP
+    citations: true
+- id: gen-position-3
+  category: position_at
+  turns:
+  - Lúc 09:37:45 ngày 11/09/2026 (UTC) tàu GREEN SEPETIBA ở đâu?
+  expect:
+    tools:
+    - get_position_at
+    citations: true
+    numbers:
+    - value: 11.7683
+      tol: 0.002
+    - value: 109.835
+      tol: 0.002
+- id: gen-track-1
+  category: track
+  turns:
+  - Trong ngày 10/09/2026 (UTC), tàu HAI TONG TUO 6 đi được bao nhiêu hải lý?
+  expect:
+    tools:
+    - get_track
+    citations: true
+    numbers:
+    - value: 0.16
+      tol: 0.1
+- id: gen-last-1
+  category: last_position
+  turns:
+  - Vị trí cuối cùng có trong dữ liệu của tàu HAI TONG TUO 6 là ở đâu?
+  expect:
+    tools:
+    - get_last_position
+    citations: true
+    numbers:
+    - value: 21.9207
+      tol: 0.002
+- id: gen-track-2
+  category: track
+  turns:
+  - Trong ngày 10/09/2026 (UTC), tàu HAI PENG đi được bao nhiêu hải lý?
+  expect:
+    tools:
+    - get_track
+    citations: true
+    numbers:
+    - value: 36.9
+      tol: 0.7379127195300876
+- id: gen-last-2
+  category: last_position
+  turns:
+  - Vị trí cuối cùng có trong dữ liệu của tàu HAI PENG là ở đâu?
+  expect:
+    tools:
+    - get_last_position
+    citations: true
+    numbers:
+    - value: 22.3383
+      tol: 0.002
+- id: gen-track-3
+  category: track
+  turns:
+  - Trong ngày 10/09/2026 (UTC), tàu QING YUN HE đi được bao nhiêu hải lý?
+  expect:
+    tools:
+    - get_track
+    citations: true
+    numbers:
+    - value: 4.65
+      tol: 0.1
+- id: gen-last-3
+  category: last_position
+  turns:
+  - Vị trí cuối cùng có trong dữ liệu của tàu QING YUN HE là ở đâu?
+  expect:
+    tools:
+    - get_last_position
+    citations: true
+    numbers:
+    - value: 22.9941
+      tol: 0.002
+- id: gen-gaps-1
+  category: dark_gaps
+  turns:
+  - Tàu CA GUANGZHOU bị mất tín hiệu AIS bao nhiêu lần trong dữ liệu?
+  expect:
+    tools:
+    - get_dark_gaps
+    citations: true
+    integers:
+    - 1
+- id: gen-gaps-2
+  category: dark_gaps
+  turns:
+  - Tàu YM HORIZON bị mất tín hiệu AIS bao nhiêu lần trong dữ liệu?
+  expect:
+    tools:
+    - get_dark_gaps
+    citations: true
+    integers:
+    - 2
+- id: gen-gaps-3
+  category: dark_gaps
+  turns:
+  - Tàu TC MESSENGER bị mất tín hiệu AIS bao nhiêu lần trong dữ liệu?
+  expect:
+    tools:
+    - get_dark_gaps
+    citations: false
+    contains_any:
+    - không có
+    - chưa có
+    - không ghi nhận
+    - không phát hiện
+    - không bị
+    - lần nào
+    - 0 lần
+- id: gen-fleet-1
+  category: company_fleet
+  turns:
+  - Công ty CK LINE CO LTD khai thác (operator) bao nhiêu tàu trong dữ liệu?
+  expect:
+    tools:
+    - find_company_vessels
+    integers:
+    - 3
+    citations: true
+- id: gen-fleet-2
+  category: company_fleet
+  turns:
+  - Công ty MERATUS LINE khai thác (operator) bao nhiêu tàu trong dữ liệu?
+  expect:
+    tools:
+    - find_company_vessels
+    integers:
+    - 3
+    citations: true
+- id: gen-fleet-3
+  category: company_fleet
+  turns:
+  - Công ty MARMARAS NAVIGATION LTD khai thác (operator) bao nhiêu tàu trong dữ liệu?
+  expect:
+    tools:
+    - find_company_vessels
+    integers:
+    - 4
+    citations: true
+- id: gen-longest-gap
+  category: dark_gaps
+  turns:
+  - Trong toàn bộ dữ liệu, tàu nào có lần tắt AIS dài nhất?
+  expect:
+    tools:
+    - get_dark_gaps
+    contains:
+    - WORLD SPIRIT
+    citations: true
+- id: gen-type-day
+  category: multi_tracks
+  turns:
+  - Vẽ hành trình của tất cả tàu chở dầu trong ngày 12/09/2026. Có bao nhiêu tàu có
+    dữ liệu?
+  expect:
+    tools:
+    - get_multi_tracks
+    integers:
+    - 126
+    citations: true

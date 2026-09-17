@@ -9,7 +9,7 @@ from collections.abc import AsyncIterator
 import asyncpg
 
 from ..config import Settings
-from ..guardrails.input import INJECTION_NOTICE, Moderator, check_input
+from ..guardrails.input import FAKE_DATA_REASON, INJECTION_NOTICE, Moderator, check_input
 from ..guardrails.output import OutputGuard, extract_answer_numbers, find_ungrounded_numbers, source_numbers
 from ..llm.client import Embedder, LLMClient
 from ..llm.prompts import SYSTEM_PROMPT
@@ -74,6 +74,17 @@ _OUTPUT_EVENT_TEXT = {
     "secret": "Đã ẩn chuỗi trông giống thông tin bí mật trong câu trả lời.",
     "system_prompt_leak": "Đã chặn việc lặp lại chỉ dẫn nội bộ của hệ thống.",
 }
+
+
+def _error_payload(exc: Exception) -> dict:
+    name = type(exc).__name__
+    if name == "RateLimitError":
+        return {"code": "llm_rate_limited", "message": "Dịch vụ AI đang quá tải, vui lòng thử lại sau ít giây."}
+    if name in ("APITimeoutError", "APIConnectionError"):
+        return {"code": "llm_unavailable", "message": "Không kết nối được dịch vụ AI, vui lòng thử lại."}
+    if "openai" in type(exc).__module__:
+        return {"code": "llm_error", "message": f"Dịch vụ AI báo lỗi ({name}), vui lòng thử lại."}
+    return {"code": "internal_error", "message": "Lỗi hệ thống khi xử lý câu trả lời."}
 
 
 def _parse_args(raw: str):
@@ -208,11 +219,15 @@ class ChatService:
                                        "Tin nhắn có dấu hiệu thay đổi chỉ dẫn; trợ lý vẫn tuân thủ quy tắc hệ thống.",
                                        reasons=verdict.reasons)
 
+            # Người dùng dán "kết quả tool" giả → buộc lần gọi đầu phải lấy dữ liệu thật qua tool
+            force_tools = verdict.action == "warn" and FAKE_DATA_REASON in verdict.reasons
+
             for iteration in range(s.max_tool_iterations + 1):
                 # Vòng cuối không đưa tool → buộc model trả lời bằng dữ liệu đã có
                 tools = self.tool_specs if iteration < s.max_tool_iterations else None
+                choice = "required" if force_tools and iteration == 0 else "auto"
                 answer, calls = "", []
-                async for ev in self.llm.stream_chat(messages, tools):
+                async for ev in self.llm.stream_chat(messages, tools, choice):
                     if ev.type == "text":
                         safe = guard.push(ev.text)
                         for e in drain_guard_events():
@@ -275,6 +290,15 @@ class ChatService:
                     async with self.pool.acquire() as conn:
                         await conv_repo.update_focus(conn, conv_id, focus)
 
+            # ---- Luôn có chứng cứ: model quên trích dẫn thì hệ thống tự gắn các chứng cứ hợp lệ của lượt
+            auto_cited = False
+            usable = [e["id"] for e in evidence if e["ok"]]
+            if answer and usable and not cited_ids(answer) and not guard.leaked:
+                note = f"\n\n_Chứng cứ: [{', '.join(usable)}]_"
+                answer += note
+                auto_cited = True
+                yield Event("token", {"text": note})
+
             # ---- Kiểm chứng đầu ra: con số phải truy được về dữ liệu; mã chứng cứ phải tồn tại
             verification = None
             if answer and not guard.leaked:
@@ -292,6 +316,7 @@ class ChatService:
                     "citations": cited,
                     "unknown_citations": unknown,
                     "evidence_count": len(evidence),
+                    "auto_cited": auto_cited,
                     "grounded": not ungrounded and not unknown,
                 }
                 yield Event("verification", verification)
@@ -325,8 +350,7 @@ class ChatService:
         except Exception as exc:  # noqa: BLE001
             outcome = "error"
             log.exception("Lỗi khi xử lý lượt %s của hội thoại %s", turn, conv_id)
-            yield Event("error", {"code": "llm_error" if "openai" in type(exc).__module__ else "internal_error",
-                                  "message": f"Không thể hoàn tất câu trả lời: {type(exc).__name__}"})
+            yield Event("error", _error_payload(exc))
             message_id = await self._save(conv_id, turn, "assistant", answer,
                                           meta={"data_ids": data_ids, "evidence": evidence, "error": type(exc).__name__})
 
