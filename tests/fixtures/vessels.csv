@@ -1,0 +1,7 @@
+vessel_id,mmsi,imo,shipname,callsign,flag_code,flag,ship_type_summary,ship_type_detail_name,length_m,width_m,dwt,grt,year_built
+00000000-0000-7000-8000-000000000001,111111111,9000001.0,ALPHA STAR,AAA1,PA,Panama (Republic of),"Cargo ships, all ships of this type",Container Ship,200.0,30.0,30000.0,25000.0,2010.0
+00000000-0000-7000-8000-000000000002,111111112,,ALPHA STAR II,AAA2,LR,Liberia (Republic of),"Cargo ships, carrying DG and/or MHB, HS, or MP, IMO hazard or pollutant category X",Bulk Carrier,150.0,25.0,,,
+00000000-0000-7000-8000-000000000003,222222222,9000003.0,BETA SEA,BBB3,SG,Singapore (Republic of),"Tanker(s), all ships of this type",Oil Products Tanker,180.0,32.0,45000.0,28000.0,2015.0
+00000000-0000-7000-8000-000000000004,333333333,,GAMMA,,VN,Viet Nam (Socialist Republic of),Fishing vessel,Fishing,,,,,
+00000000-0000-7000-8000-000000000005,444444444,,,,,,Not available,,,,,,
+00000000-0000-7000-8000-000000000006,555555555,9000006.0,DELTA FISH,DDD6,CN,China (People's Republic of),Fishing vessel,Fishing,40.0,8.0,,300.0,2001.0
