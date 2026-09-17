@@ -56,6 +56,15 @@ describe('argChips', () => {
     ])
   })
 
+  it('labels list_vessels arguments and hides the first-page offset', () => {
+    expect(argChips({ ship_type_group: 'fishing', flag: 'Panama', order_by: 'dwt', offset: 0 })).toEqual([
+      { label: 'Loại tàu', value: 'tàu cá' },
+      { label: 'Cờ', value: 'Panama' },
+      { label: 'Sắp xếp', value: 'trọng tải lớn nhất' },
+    ])
+    expect(argChips({ offset: 20 })).toEqual([{ label: 'Bỏ qua', value: '20' }])
+  })
+
   it('keeps raw text arguments', () => {
     expect(argChips('{bad')).toEqual([{ label: 'Tham số', value: '{bad' }])
   })

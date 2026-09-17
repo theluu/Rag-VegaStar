@@ -1,6 +1,7 @@
 # Hướng dẫn sử dụng trợ lý hải đồ
 
 ## Có thể hỏi gì
+- Đếm và liệt kê tàu: tổng số tàu, số tàu theo loại hoặc theo cờ, danh sách tên (hỏi "xem tiếp" để xem trang sau), các tàu có trọng tải, chiều dài lớn nhất hoặc đóng mới nhất.
 - Thông tin tàu: mã nhận dạng, cờ, loại, kích thước, trọng tải, năm đóng, các công ty theo vai trò, các tàu khác cùng chủ.
 - Vị trí tàu tại một thời điểm (UTC), vị trí cuối cùng có trong dữ liệu.
 - Hành trình trong một khoảng thời gian: điểm đầu, điểm cuối, quãng đường, tốc độ trung bình, khoảng trống dữ liệu.

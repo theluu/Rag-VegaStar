@@ -66,6 +66,7 @@ const EVAL_CATEGORIES: Record<string, string> = {
   dark_gaps: 'Mất tín hiệu AIS',
   company_fleet: 'Đội tàu công ty',
   multi_tracks: 'Nhiều hành trình',
+  vessel_list: 'Đếm, liệt kê tàu',
 }
 
 export const guardKindLabel = (kind: string) => GUARD_KINDS[kind] ?? kind

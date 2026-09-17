@@ -82,6 +82,7 @@ export function buildTurns(messages: StoredMessage[]): Turn[] {
 
 const TOOLS: Record<string, { label: string; icon: IconName }> = {
   search_vessels: { label: 'Tìm tàu', icon: 'search' },
+  list_vessels: { label: 'Liệt kê tàu', icon: 'database' },
   get_vessel_details: { label: 'Tra hồ sơ tàu', icon: 'ship' },
   find_company_vessels: { label: 'Tra đội tàu của công ty', icon: 'company' },
   get_position_at: { label: 'Tra vị trí theo thời điểm', icon: 'pin' },
@@ -108,6 +109,9 @@ const ARG_LABELS: Record<string, string> = {
   order_by: 'Sắp xếp',
   exclude_vessel: 'Trừ tàu',
   limit: 'Số lượng',
+  offset: 'Bỏ qua',
+  flag: 'Cờ',
+  name_contains: 'Tên chứa',
 }
 
 const VALUE_LABELS: Record<string, string> = {
@@ -125,6 +129,12 @@ const VALUE_LABELS: Record<string, string> = {
   duration: 'lâu nhất',
   distance: 'xa nhất',
   start: 'theo thời gian',
+  name: 'theo tên',
+  dwt: 'trọng tải lớn nhất',
+  length: 'dài nhất',
+  year_built: 'mới đóng nhất',
+  special: 'tàu chuyên dụng',
+  other: 'loại khác',
 }
 
 const ISO = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?/
@@ -140,7 +150,7 @@ function formatValue(v: unknown): string {
 export function argChips(args: ToolStep['args']): { label: string; value: string }[] {
   if (typeof args === 'string') return [{ label: 'Tham số', value: args }]
   return Object.entries(args)
-    .filter(([k, v]) => v !== null && v !== undefined && v !== '' && k in ARG_LABELS)
+    .filter(([k, v]) => v !== null && v !== undefined && v !== '' && k in ARG_LABELS && !(k === 'offset' && v === 0))
     .map(([k, v]) => ({ label: ARG_LABELS[k], value: formatValue(v) }))
 }
 

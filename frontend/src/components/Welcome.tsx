@@ -4,8 +4,12 @@ const GROUPS: { icon: IconName; title: string; text: string; examples: string[] 
   {
     icon: 'ship',
     title: 'Hồ sơ và chủ sở hữu',
-    text: 'Mã nhận dạng, cờ, kích thước, các công ty theo vai trò.',
-    examples: ['Cho tôi thông tin về tàu KOTA GAYA.', 'Pacific International Lines còn sở hữu những tàu nào?'],
+    text: 'Danh sách tàu, mã nhận dạng, cờ, kích thước, các công ty theo vai trò.',
+    examples: [
+      'Cho tôi thông tin về tàu KOTA GAYA.',
+      'Hệ thống có bao nhiêu tàu? Kể tên các tàu cá.',
+      'Pacific International Lines còn sở hữu những tàu nào?',
+    ],
   },
   {
     icon: 'route',

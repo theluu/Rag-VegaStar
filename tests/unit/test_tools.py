@@ -22,7 +22,7 @@ def test_specs_cover_all_tools():
     names = {s["function"]["name"] for s in openai_tool_specs()}
     assert names == {
         "search_vessels", "get_vessel_details", "find_company_vessels", "get_position_at",
-        "get_last_position", "get_track", "get_dark_gaps", "get_multi_tracks", "search_knowledge",
+        "get_last_position", "get_track", "get_dark_gaps", "get_multi_tracks", "search_knowledge", "list_vessels",
     }
     for s in openai_tool_specs():
         assert s["type"] == "function" and s["function"]["description"]
@@ -231,3 +231,41 @@ async def test_track_coverage_warnings(ctx):
     assert any("sớm hơn thời điểm kết thúc" in w for w in partial.content["coverage_warnings"])
     full = await call(ctx, "get_track", vessel=BETA, start="2026-09-11", end="2026-09-11")
     assert "coverage_warnings" not in full.content
+
+
+async def test_list_vessels_counts_and_pages(ctx):
+    r = (await call(ctx, "list_vessels", limit=2)).content
+    assert r["status"] == "ok" and r["dataset_vessel_count"] == 6 and r["matching_vessel_count"] == 6
+    assert r["unnamed_vessel_count"] == 1
+    assert {g["name"]: g["count"] for g in r["by_ship_type_group"]} == {"cargo": 2, "tanker": 1, "fishing": 2, "unknown": 1}
+    assert [v["name"] for v in r["vessels"]] == ["ALPHA STAR", "ALPHA STAR II"]
+    assert r["has_more"] and r["next_offset"] == 2 and r["page"]["showing"] == "1–2 / 6"
+    assert r["vessels"][0]["no"] == 1 and r["vessels"][0]["type_vi"] == "tàu hàng"
+    assert "deadweight_tonnes" not in r["vessels"][0]
+
+    last = (await call(ctx, "list_vessels", limit=5, offset=2)).content
+    # tàu không tên nằm cuối danh sách theo tên
+    assert [v["name"] for v in last["vessels"]] == ["BETA SEA", "DELTA FISH", "GAMMA", "(không tên)"]
+    assert last["has_more"] is False and last["next_offset"] is None
+    assert last["page"] == {"offset": 2, "returned": 4, "showing": "3–6 / 6"} and last["vessels"][0]["no"] == 3
+
+
+async def test_list_vessels_filters_and_sorting(ctx):
+    fishing = (await call(ctx, "list_vessels", ship_type_group="fishing")).content
+    assert fishing["matching_vessel_count"] == 2 and fishing["dataset_vessel_count"] == 6
+    assert {v["name"] for v in fishing["vessels"]} == {"GAMMA", "DELTA FISH"}
+
+    for flag in ("Panama", "pa", "PANAMA"):
+        panama = (await call(ctx, "list_vessels", flag=flag)).content
+        assert [v["vessel_id"] for v in panama["vessels"]] == [ALPHA], flag
+    assert (await call(ctx, "list_vessels", name_contains="alpha")).content["matching_vessel_count"] == 2
+
+    by_dwt = (await call(ctx, "list_vessels", order_by="dwt", limit=2)).content
+    assert [v["vessel_id"] for v in by_dwt["vessels"]] == [BETA, ALPHA]
+    assert by_dwt["vessels"][0]["deadweight_tonnes"] == 45000
+
+    none = (await call(ctx, "list_vessels", flag="Atlantis")).content
+    assert none["status"] == "no_results" and none["matching_vessel_count"] == 0 and none["message"]
+
+    bad = (await call(ctx, "list_vessels", limit=31)).content
+    assert "error" in bad

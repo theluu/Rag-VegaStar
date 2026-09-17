@@ -70,3 +70,13 @@ def test_ambiguous_vessel_evidence_for_every_tool():
         ev = build_evidence("E1", tool, {}, result)
         assert facts(ev)["Kết quả"] == "Có nhiều tàu khớp"
         assert [f["value"] for f in ev["facts"] if f["label"] == "Ứng viên"] == ["ALPHA STAR 1", "ALPHA STAR II 2"]
+
+
+async def test_list_vessels_evidence(ctx):
+    result = await execute_tool(ctx, "list_vessels", json.dumps({"ship_type_group": "fishing"}))
+    ev = build_evidence("E3", "list_vessels", {"ship_type_group": "fishing"}, result)
+    facts = {f["label"]: f["value"] for f in ev["facts"]}
+    assert ev["label"] == "Danh sách tàu" and ev["sources"] == ["vessels"]
+    assert facts["Tổng số tàu trong dữ liệu"] == "6" and facts["Số tàu khớp"] == "2"
+    assert facts["Theo loại"] == "tàu cá 2"
+    assert "GAMMA" in facts["Tàu 1–2"] and "DELTA FISH" in facts["Tàu 1–2"]

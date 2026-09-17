@@ -279,7 +279,8 @@ class GetMultiTracks(Tool):
         "Vẽ hành trình của NHIỀU tàu lên bản đồ trong khoảng thời gian (UTC), lọc theo công ty (+ vai trò) và/hoặc "
         "nhóm loại tàu (tanker = tàu chở dầu/hoá chất/khí, cargo = tàu hàng/container/hàng rời, fishing = tàu cá, "
         "tug = tàu kéo, passenger = tàu khách). Dữ liệu điểm đi thẳng lên bản đồ; tool chỉ trả tóm tắt: số tàu, "
-        "số điểm, khung toạ độ và danh sách tàu xếp theo quãng đường giảm dần."
+        "số điểm, khung toạ độ và danh sách tàu xếp theo quãng đường giảm dần. Chỉ dùng khi người dùng muốn xem "
+        "hành trình; để đếm hoặc liệt kê tàu, dùng list_vessels."
     )
 
     class Args(BaseModel):

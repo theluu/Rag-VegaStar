@@ -13,6 +13,7 @@ Hải đồ hỏi đáp là trợ lý AI dạng trò chuyện dành cho người
 - Không có: dữ liệu thời gian thực, cảng đã ghé, hàng hoá, thuyền viên, thời tiết.
 
 ## Có thể hỏi gì
+- “Hệ thống có bao nhiêu tàu? Kể tên các tàu cá.” — tổng số, phân bố theo loại và cờ, danh sách có phân trang.
 - “Cho tôi thông tin về tàu [tên tàu].” — mã nhận dạng, cờ, loại, kích thước, các công ty theo vai trò.
 - “Công ty chủ sở hữu đăng ký đó còn những tàu nào khác?”
 - “Lúc 21:00 ngày 11/09/2026 (UTC) tàu đó ở đâu?” — điểm gần nhất, độ lệch thời gian, vị trí nội suy.

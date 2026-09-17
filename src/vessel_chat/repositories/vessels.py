@@ -171,3 +171,74 @@ async def vessels_by_filter(
         company_norms, role, ship_type_group, limit,
     )
     return [dict(r) for r in rows]
+
+
+# Sắp xếp danh sách tàu: ánh xạ sang đoạn SQL cố định (không ghép chuỗi từ người dùng)
+LIST_ORDER = {
+    "name": "v.shipname_norm = '', v.shipname_norm, v.mmsi",
+    "dwt": "v.dwt DESC NULLS LAST, v.shipname_norm",
+    "length": "v.length_m DESC NULLS LAST, v.shipname_norm",
+    "year_built": "v.year_built DESC NULLS LAST, v.shipname_norm",
+}
+
+_LIST_FILTER = """
+    ($1::text IS NULL OR v.ship_type_group = $1)
+    AND ($2::text IS NULL OR upper(v.flag_code) = upper($2) OR v.flag ILIKE '%' || $2 || '%')
+    AND ($3::text IS NULL OR v.shipname_norm LIKE '%' || $3 || '%')
+"""
+
+
+async def list_vessels(
+    conn: asyncpg.Connection,
+    ship_type_group: str | None,
+    flag: str | None,
+    name_contains: str | None,
+    order_by: str,
+    limit: int,
+    offset: int,
+) -> tuple[int, list[dict]]:
+    """Trang danh sách tàu theo bộ lọc; trả (tổng số tàu khớp, các tàu của trang)."""
+    name = norm_name(name_contains) if name_contains else None
+    total = await conn.fetchval(f"SELECT count(*) FROM vessels v WHERE {_LIST_FILTER}", ship_type_group, flag, name)
+    rows = await conn.fetch(
+        f"""
+        SELECT {VESSEL_COLUMNS}
+        FROM vessels v
+        WHERE {_LIST_FILTER}
+        ORDER BY {LIST_ORDER[order_by]}
+        LIMIT $4 OFFSET $5
+        """,
+        ship_type_group, flag, name, limit, offset,
+    )
+    return total, [dict(r) for r in rows]
+
+
+async def vessel_breakdown(
+    conn: asyncpg.Connection, ship_type_group: str | None, flag: str | None, name_contains: str | None, top_flags: int
+) -> dict:
+    """Số tàu theo nhóm loại và theo cờ (trong tập đã lọc), cùng tổng số tàu của cả bộ dữ liệu."""
+    name = norm_name(name_contains) if name_contains else None
+    groups = await conn.fetch(
+        f"""SELECT v.ship_type_group AS name, count(*) AS count FROM vessels v WHERE {_LIST_FILTER}
+            GROUP BY 1 ORDER BY 2 DESC, 1""",
+        ship_type_group, flag, name,
+    )
+    flags = await conn.fetch(
+        f"""SELECT coalesce(v.flag, 'không rõ') AS name, count(*) AS count FROM vessels v WHERE {_LIST_FILTER}
+            GROUP BY 1 ORDER BY 2 DESC, 1 LIMIT $4""",
+        ship_type_group, flag, name, top_flags,
+    )
+    extra = await conn.fetchrow(
+        f"""SELECT (SELECT count(*) FROM vessels) AS dataset_total,
+                   count(*) FILTER (WHERE v.shipname_norm = '') AS unnamed,
+                   count(DISTINCT v.flag) AS flag_count
+            FROM vessels v WHERE {_LIST_FILTER}""",
+        ship_type_group, flag, name,
+    )
+    return {
+        "dataset_total": extra["dataset_total"],
+        "unnamed": extra["unnamed"],
+        "flag_count": extra["flag_count"],
+        "by_ship_type_group": [dict(g) for g in groups],
+        "top_flags": [dict(f) for f in flags],
+    }

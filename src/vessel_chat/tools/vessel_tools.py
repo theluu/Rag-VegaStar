@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 from ..repositories import gaps as gap_repo
@@ -8,6 +10,7 @@ from .base import Tool, ToolContext, ToolResult, register
 from .common import (
     VESSEL_ARG_DESC,
     Role,
+    ShipTypeGroup,
     company_focus,
     resolve_company,
     resolve_vessel,
@@ -40,6 +43,78 @@ class SearchVessels(Tool):
         ]
         focus = vessel_focus(rows[0]) if len(rows) == 1 else {}
         return ToolResult(content={"count": len(results), "results": results}, focus=focus)
+
+
+SHIP_GROUP_VI = {
+    "cargo": "tàu hàng", "tanker": "tàu dầu/hoá chất/khí", "fishing": "tàu cá", "tug": "tàu kéo",
+    "passenger": "tàu khách", "high_speed": "tàu cao tốc", "pleasure": "du thuyền/tàu buồm",
+    "special": "tàu chuyên dụng", "other": "loại khác", "unknown": "chưa rõ loại",
+}
+
+
+@register
+class ListVessels(Tool):
+    name = "list_vessels"
+    description = (
+        "Đếm và liệt kê tàu trong bộ dữ liệu: tổng số tàu, số tàu theo nhóm loại và theo cờ, danh sách tên có phân "
+        "trang. Lọc tuỳ chọn theo nhóm loại tàu, cờ, hoặc một phần tên. Dùng cho câu hỏi 'có bao nhiêu tàu', "
+        "'liệt kê/kể tên các tàu', 'có những tàu cá nào', 'tàu treo cờ Panama'. Không vẽ bản đồ, không cần thời gian. "
+        "Tàu của một công ty → dùng find_company_vessels."
+    )
+
+    class Args(BaseModel):
+        ship_type_group: ShipTypeGroup | None = Field(default=None, description="Lọc theo nhóm loại tàu")
+        flag: str | None = Field(default=None, description="Cờ: tên quốc gia tiếng Anh (vd. Panama, Singapore) "
+                                                           "hoặc mã 2 chữ (PA, SG)")
+        name_contains: str | None = Field(default=None, description="Một phần tên tàu (vd. 'EVER', 'MSC')")
+        order_by: Literal["name", "dwt", "length", "year_built"] = Field(
+            default="name", description="Sắp xếp: name = theo tên A→Z; dwt/length/year_built = lớn/mới nhất trước")
+        limit: int = Field(default=20, ge=1, le=30, description="Số tàu mỗi trang (mặc định 20, tối đa 30)")
+        offset: int = Field(default=0, ge=0, description="Bỏ qua bao nhiêu tàu (xem trang tiếp: dùng next_offset)")
+
+    async def run(self, ctx: ToolContext, args: Args) -> ToolResult:
+        flag = (args.flag or "").strip() or None
+        name = (args.name_contains or "").strip() or None
+        async with ctx.pool.acquire() as conn:
+            total, rows = await vessel_repo.list_vessels(
+                conn, args.ship_type_group, flag, name, args.order_by, args.limit, args.offset
+            )
+            breakdown = await vessel_repo.vessel_breakdown(conn, args.ship_type_group, flag, name, top_flags=10)
+
+        filtered = any(x is not None for x in (args.ship_type_group, flag, name))
+        next_offset = args.offset + len(rows)
+        # Chỉ kèm thông số dùng để sắp xếp, giữ kết quả gọn cho LLM
+        metric = {"dwt": "deadweight_tonnes", "length": "length_m", "year_built": "year_built"}.get(args.order_by)
+        source = {"deadweight_tonnes": "dwt", "length_m": "length_m", "year_built": "year_built"}
+        content = {
+            "status": "ok" if total else "no_results",
+            "filters": {"ship_type_group": args.ship_type_group, "flag": flag, "name_contains": name},
+            "dataset_vessel_count": breakdown["dataset_total"],
+            "matching_vessel_count": total,
+            "unnamed_vessel_count": breakdown["unnamed"],
+            "flag_count": breakdown["flag_count"],
+            "by_ship_type_group": [
+                {**g, "label_vi": SHIP_GROUP_VI.get(g["name"], g["name"])} for g in breakdown["by_ship_type_group"]
+            ],
+            "top_flags": breakdown["top_flags"],
+            "order_by": args.order_by,
+            "page": {
+                "offset": args.offset,
+                "returned": len(rows),
+                "showing": f"{args.offset + 1}–{next_offset} / {total}" if rows else f"0 / {total}",
+            },
+            "vessels": [
+                {"no": args.offset + i, **vessel_brief(r), "flag": r["flag"],
+                 "type_vi": SHIP_GROUP_VI.get(r["ship_type_group"], r["ship_type_group"]),
+                 **({metric: r[source[metric]]} if metric else {})}
+                for i, r in enumerate(rows, start=1)
+            ],
+            "has_more": next_offset < total,
+            "next_offset": next_offset if next_offset < total else None,
+        }
+        if not total:
+            content["message"] = "Không có tàu nào khớp bộ lọc" if filtered else "Bộ dữ liệu chưa có tàu"
+        return ToolResult(content=content)
 
 
 @register

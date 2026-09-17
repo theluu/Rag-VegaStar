@@ -11,6 +11,7 @@ from ..tools import ToolResult
 
 _LABELS = {
     "search_vessels": "Tìm tàu",
+    "list_vessels": "Danh sách tàu",
     "get_vessel_details": "Hồ sơ tàu",
     "find_company_vessels": "Đội tàu của công ty",
     "get_position_at": "Vị trí theo thời điểm",
@@ -23,6 +24,7 @@ _LABELS = {
 
 _SOURCES = {
     "search_vessels": ["vessels"],
+    "list_vessels": ["vessels"],
     "get_vessel_details": ["vessels", "ownership", "ais_positions", "dark_gaps"],
     "find_company_vessels": ["ownership", "vessels"],
     "get_position_at": ["ais_positions", "dark_gaps"],
@@ -149,6 +151,19 @@ def _facts(tool: str, c: dict) -> list[tuple[str, str]]:
         for i, v in enumerate(c["top_by_distance"][:5], start=1):
             out.append((f"Xa thứ {i}", f"{v['name']} ({v['mmsi']}): {_fmt(v['distance_nm'])} hải lý"))
         return out
+    if tool == "list_vessels":
+        f = c["filters"]
+        page = c["page"]
+        names = [f"{v['name']} ({v['mmsi']})" for v in c["vessels"][:MAX_LIST]]
+        return [
+            ("Bộ lọc", f"loại={_fmt(f['ship_type_group'])}, cờ={_fmt(f['flag'])}, tên chứa={_fmt(f['name_contains'])}"),
+            ("Tổng số tàu trong dữ liệu", _fmt(c["dataset_vessel_count"])),
+            ("Số tàu khớp", _fmt(c["matching_vessel_count"])),
+            ("Theo loại", ", ".join(f"{g['label_vi']} {g['count']}" for g in c["by_ship_type_group"])),
+            ("Cờ nhiều nhất", ", ".join(f"{x['name']} {x['count']}" for x in c["top_flags"][:5])),
+            (f"Tàu {page['offset'] + 1}–{page['offset'] + page['returned']}" if page["returned"] else "Tàu",
+             "; ".join(names) + (" …" if page["returned"] > len(names) or c["has_more"] else "")),
+        ]
     if tool == "search_vessels":
         return [("Số kết quả", _fmt(c["count"]))] + [
             (r["name"], f"MMSI {r['mmsi']}, {r['flag']}") for r in c["results"][:MAX_LIST]
