@@ -28,6 +28,12 @@ services:
       - ./results:/app/results
     ports:
       - "${API_HOST_PORT:-8000}:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4)"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     depends_on:
       db:
         condition: service_healthy
@@ -38,10 +44,17 @@ services:
       args:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL}
         VITE_MAP_STYLE_URL: ${VITE_MAP_STYLE_URL}
+        VITE_SITE_URL: ${VITE_SITE_URL:-http://localhost:5173}
+        VITE_API_KEY: ${VITE_API_KEY:-}
+    environment:
+      # Nguồn được phép trong Content-Security-Policy của trang
+      API_ORIGIN: ${API_ORIGIN:-http://localhost:8000}
+      MAP_ORIGIN: ${MAP_ORIGIN:-https://tiles.openfreemap.org}
     ports:
-      - "${WEB_HOST_PORT:-5173}:80"
+      - "${WEB_HOST_PORT:-5173}:8080"
     depends_on:
-      - api
+      api:
+        condition: service_healthy
 
 volumes:
   pgdata:

@@ -1,0 +1,16 @@
+# Hải đồ hỏi đáp
+
+> Trợ lý AI tra cứu tàu biển (vessel intelligence chatbot) bằng tiếng Việt trên dữ liệu AIS, đăng kiểm và chủ sở hữu của khoảng 1.000 tàu ở vùng Biển Đông (102–118°E, 6–23°N), từ 10 đến 12/09/2026 (UTC). Mỗi câu trả lời lấy số liệu qua công cụ truy vấn có tham số, kèm mã chứng cứ và được tự động đối chiếu với dữ liệu gốc; vị trí và hành trình hiển thị trên bản đồ.
+
+Điểm chính:
+- Trả lời: thông tin tàu (MMSI, IMO, cờ, loại, kích thước), chủ sở hữu theo vai trò, vị trí tại một thời điểm, hành trình và quãng đường, các lần mất tín hiệu AIS (dark gap), hành trình nhiều tàu theo công ty hoặc loại tàu, kiến thức nghiệp vụ hàng hải.
+- Không trả lời: dữ liệu ngoài phạm vi trên (thời gian thực, cảng ghé, hàng hoá, thuyền viên) và chủ đề không liên quan đến hàng hải.
+- Độ tin cậy: mã chứng cứ [E1], [E2]… cho biết bảng nguồn, tham số truy vấn và giá trị gốc; guardrail chặn prompt injection và ẩn thông tin nhạy cảm.
+
+## Tài liệu
+
+- [Mô tả đầy đủ cho mô hình ngôn ngữ](%VITE_SITE_URL%/llms-full.txt): tính năng, phạm vi dữ liệu, cách đặt câu hỏi, câu hỏi thường gặp, API.
+
+## Tuỳ chọn
+
+- [Trang ứng dụng](%VITE_SITE_URL%/): giao diện hỏi đáp và bản đồ.

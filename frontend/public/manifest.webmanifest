@@ -1,0 +1,13 @@
+{
+  "name": "Hải đồ hỏi đáp — tra cứu tàu biển bằng AI",
+  "short_name": "Hải đồ hỏi đáp",
+  "description": "Hỏi bằng tiếng Việt về chủ sở hữu, vị trí, hành trình và các lần tắt AIS của tàu biển; câu trả lời có chứng cứ và bản đồ.",
+  "lang": "vi",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f4f7f9",
+  "theme_color": "#0b2238",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+
+# Mô tả sản phẩm dành cho mô hình ngôn ngữ (GEO)
+# %VITE_SITE_URL%/llms.txt
+
+Sitemap: %VITE_SITE_URL%/sitemap.xml

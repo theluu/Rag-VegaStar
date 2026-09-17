@@ -1,0 +1,36 @@
+# Hải đồ hỏi đáp — mô tả đầy đủ
+
+English summary: Vietnamese-language AI assistant for maritime vessel intelligence. It answers questions about ~1,000 vessels using AIS positions (10–12 Sep 2026, UTC, region 102–118°E / 6–23°N), registry data, ownership roles and AIS dark-gap events. Every figure comes from parameterised database tools; answers cite evidence IDs (E1, E2…) and numbers are automatically checked against the retrieved data. Positions and voyages are drawn on an interactive map.
+
+## Sản phẩm là gì
+Hải đồ hỏi đáp là trợ lý AI dạng trò chuyện dành cho người phân tích hàng hải. Người dùng hỏi bằng ngôn ngữ tự nhiên, hỏi nối tiếp nhiều câu (“nó”, “tàu đó”, “ngày hôm sau”), và nhận câu trả lời hiện dần theo thời gian thực, kèm bản đồ và chứng cứ.
+
+## Phạm vi dữ liệu
+- Khoảng 1.000 tàu; vị trí AIS từ 10/09/2026 đến hết 12/09/2026 (UTC); vùng 102–118°E, 6–23°N.
+- Thông tin tĩnh của tàu: MMSI, IMO, hô hiệu, quốc gia treo cờ, loại tàu, kích thước, DWT, GT, năm đóng.
+- Quan hệ tàu – công ty theo vai trò: chủ sở hữu đăng ký, chủ sở hữu hưởng lợi, nhà khai thác, quản lý thương mại, quản lý kỹ thuật, quản lý ISM.
+- Sự kiện mất tín hiệu AIS từ 3 giờ trở lên.
+- Không có: dữ liệu thời gian thực, cảng đã ghé, hàng hoá, thuyền viên, thời tiết.
+
+## Có thể hỏi gì
+- “Cho tôi thông tin về tàu [tên tàu].” — mã nhận dạng, cờ, loại, kích thước, các công ty theo vai trò.
+- “Công ty chủ sở hữu đăng ký đó còn những tàu nào khác?”
+- “Lúc 21:00 ngày 11/09/2026 (UTC) tàu đó ở đâu?” — điểm gần nhất, độ lệch thời gian, vị trí nội suy.
+- “Tàu có MMSI [số] đã đi từ đâu đến đâu trong ngày 11/09/2026?” — điểm đầu, điểm cuối, quãng đường, tốc độ trung bình.
+- “Tàu nào mất tín hiệu AIS lâu nhất? Mất ở đâu và xuất hiện lại ở đâu?”
+- “Hiển thị hành trình của tất cả tàu do [công ty] khai thác từ 10/09 đến 12/09/2026.”
+- “Trạng thái hành hải ‘Restricted manoeuvrability’ nghĩa là gì?” — trả lời từ kho tri thức nghiệp vụ, có trích dẫn.
+
+## Độ tin cậy và an toàn
+- Mọi con số lấy từ công cụ truy vấn cơ sở dữ liệu (không để mô hình tự viết SQL); mỗi lần truy vấn có mã chứng cứ.
+- Hệ thống tự đối chiếu các con số trong câu trả lời với dữ liệu đã truy vấn và cảnh báo nếu không khớp.
+- Guardrail: chặn yêu cầu thay đổi chỉ dẫn hệ thống (prompt injection), kiểm duyệt nội dung, ẩn chuỗi giống thông tin bí mật, từ chối chủ đề ngoài phạm vi.
+- Dữ liệu do người dùng dán vào không được coi là dữ liệu hệ thống.
+
+## Câu hỏi thường gặp
+Hỏi: Dark gap là gì? — Đáp: Khoảng thời gian liên tục từ 3 giờ trở lên không thu được bản tin AIS của tàu; nguyên nhân thường gặp là ngoài vùng phủ sóng, ra khỏi vùng dữ liệu, lỗi thiết bị hoặc chủ động tắt AIS.
+Hỏi: MMSI và IMO khác nhau thế nào? — Đáp: MMSI gồm 9 chữ số nhận dạng thiết bị vô tuyến và có thể đổi khi tàu đổi cờ; IMO gồm 7 chữ số gắn với thân tàu suốt vòng đời.
+Hỏi: Thời gian dùng múi giờ nào? — Đáp: UTC.
+
+## API
+HTTP API có tài liệu OpenAPI: tạo và quản lý hội thoại, gửi câu hỏi nhận luồng Server-Sent Events (sự kiện token, tool_call, tool_result, evidence, verification, guardrail, data, error, done), lấy GeoJSON bản đồ và truy vấn nhiều hành trình có phân trang.

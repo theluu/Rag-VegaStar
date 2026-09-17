@@ -2,16 +2,137 @@
 <html lang="vi">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Hỏi đáp về tàu biển trên dữ liệu AIS, có bản đồ hành trình." />
+    <title>Hải đồ hỏi đáp — Tra cứu tàu biển AIS bằng AI, có chứng cứ và bản đồ</title>
+    <meta
+      name="description"
+      content="Trợ lý AI tra cứu 1.000 tàu biển trên dữ liệu AIS vùng Biển Đông: chủ sở hữu, vị trí, hành trình, mất tín hiệu AIS. Mỗi câu trả lời có chứng cứ và bản đồ."
+    />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <meta name="theme-color" content="#0b2238" />
+    <meta name="application-name" content="Hải đồ hỏi đáp" />
+    <link rel="canonical" href="%VITE_SITE_URL%/" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="alternate" type="text/plain" title="Mô tả cho mô hình ngôn ngữ" href="/llms.txt" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="vi_VN" />
+    <meta property="og:site_name" content="Hải đồ hỏi đáp" />
+    <meta property="og:title" content="Hải đồ hỏi đáp — Tra cứu tàu biển AIS bằng AI" />
+    <meta
+      property="og:description"
+      content="Hỏi bằng tiếng Việt về chủ sở hữu, vị trí, hành trình và các lần tắt AIS của 1.000 tàu. Câu trả lời có chứng cứ, hiển thị trên bản đồ."
+    />
+    <meta property="og:url" content="%VITE_SITE_URL%/" />
+    <meta property="og:image" content="%VITE_SITE_URL%/og-image.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Bản đồ hành trình của hàng trăm tàu hàng cùng khung hỏi đáp có chứng cứ" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Hải đồ hỏi đáp — Tra cứu tàu biển AIS bằng AI" />
+    <meta name="twitter:description" content="Chủ sở hữu, vị trí, hành trình, mất tín hiệu AIS — trả lời có chứng cứ và bản đồ." />
+    <meta name="twitter:image" content="%VITE_SITE_URL%/og-image.jpg" />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebApplication",
+            "name": "Hải đồ hỏi đáp",
+            "url": "%VITE_SITE_URL%/",
+            "applicationCategory": "BusinessApplication",
+            "operatingSystem": "Web",
+            "inLanguage": "vi",
+            "description": "Trợ lý AI tra cứu tàu biển trên dữ liệu AIS, đăng kiểm và chủ sở hữu, trả lời bằng tiếng Việt kèm chứng cứ và bản đồ.",
+            "featureList": [
+              "Tra cứu thông tin tàu theo tên, MMSI, IMO",
+              "Chủ sở hữu và các công ty quản lý theo vai trò",
+              "Vị trí tàu tại một thời điểm, có nội suy",
+              "Hành trình, quãng đường và tốc độ trung bình",
+              "Các lần mất tín hiệu AIS (dark gap)",
+              "Hành trình nhiều tàu theo công ty hoặc loại tàu trên bản đồ",
+              "Mã chứng cứ và kiểm chứng số liệu cho mỗi câu trả lời"
+            ],
+            "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+          },
+          {
+            "@type": "FAQPage",
+            "mainEntity": [
+              {
+                "@type": "Question",
+                "name": "Hải đồ hỏi đáp trả lời được những câu hỏi nào?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Thông tin tàu và chủ sở hữu, vị trí tại một thời điểm (UTC), hành trình trong một khoảng thời gian, các lần mất tín hiệu AIS, hành trình của cả đội tàu theo công ty hoặc loại tàu, và kiến thức nghiệp vụ như trạng thái hành hải, mã loại tàu, MMSI, IMO."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Dữ liệu bao phủ phạm vi nào?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Khoảng 1.000 tàu, dữ liệu AIS từ 10 đến 12/09/2026 (UTC) trong vùng 102–118°E, 6–23°N, kèm dữ liệu đăng kiểm, chủ sở hữu và các sự kiện mất tín hiệu từ 3 giờ trở lên."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Làm sao biết câu trả lời đúng?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Mỗi câu trả lời trích mã chứng cứ [E1], [E2]… trỏ tới lần truy vấn dữ liệu hoặc tài liệu đã dùng, kèm bảng nguồn, tham số và giá trị gốc. Hệ thống tự đối chiếu mọi con số với dữ liệu và cảnh báo nếu không khớp."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Dark gap (mất tín hiệu AIS) là gì?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Là khoảng thời gian liên tục từ 3 giờ trở lên không thu được bản tin AIS của tàu, có thể do ngoài vùng phủ sóng, ra khỏi vùng dữ liệu, lỗi thiết bị hoặc chủ động tắt AIS."
+                }
+              }
+            ]
+          }
+        ]
+      }
+    </script>
+
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..700&display=swap" rel="stylesheet" />
-    <title>Hải đồ hỏi đáp</title>
+    <style>
+      /* Nội dung tĩnh cho công cụ tìm kiếm và người dùng tắt JavaScript; React thay thế khi tải xong */
+      .prerender { max-width: 760px; margin: 0 auto; padding: 48px 20px; font-family: Archivo, system-ui, sans-serif; color: #0b2238; line-height: 1.6; }
+      .prerender h1 { font-size: 2rem; line-height: 1.15; margin: 0 0 12px; }
+      .prerender h2 { font-size: 1.15rem; margin: 28px 0 8px; }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <main class="prerender">
+        <h1>Hải đồ hỏi đáp — tra cứu tàu biển bằng AI</h1>
+        <p>
+          Trợ lý AI trả lời bằng tiếng Việt về khoảng 1.000 tàu trong vùng Biển Đông (102–118°E, 6–23°N), dữ liệu AIS
+          từ 10 đến 12/09/2026: tàu của ai, đang ở đâu, đã đi những đâu và có tắt tín hiệu AIS bất thường không.
+        </p>
+        <h2>Tính năng</h2>
+        <ul>
+          <li>Thông tin tàu theo tên, MMSI, IMO; chủ sở hữu và các công ty quản lý theo vai trò.</li>
+          <li>Vị trí tại một thời điểm (có nội suy), hành trình, quãng đường và tốc độ trung bình.</li>
+          <li>Các lần mất tín hiệu AIS: thời gian, độ dài, vị trí mất và vị trí xuất hiện lại.</li>
+          <li>Hành trình của cả đội tàu theo công ty hoặc loại tàu, vẽ trên bản đồ tương tác.</li>
+          <li>Mỗi câu trả lời có mã chứng cứ và được tự động đối chiếu số liệu với dữ liệu gốc.</li>
+        </ul>
+        <h2>Câu hỏi ví dụ</h2>
+        <ul>
+          <li>Tàu có MMSI 563240200 đã đi từ đâu đến đâu trong ngày 11/09/2026?</li>
+          <li>Tàu nào mất tín hiệu AIS lâu nhất trong dữ liệu?</li>
+          <li>Trạng thái hành hải "At anchor" và "Moored" khác nhau thế nào?</li>
+        </ul>
+        <noscript><p><strong>Cần bật JavaScript để dùng giao diện hỏi đáp và bản đồ.</strong></p></noscript>
+      </main>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
