@@ -1,0 +1,12 @@
+# Dữ liệu bài test: không được chia sẻ lại
+data/
+*.docx
+.env
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.DS_Store
+node_modules/
+frontend/dist/
+.coverage
