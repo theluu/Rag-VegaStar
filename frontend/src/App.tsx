@@ -160,6 +160,9 @@ export default function App() {
         onCreate={() => void createConversation()}
         onDelete={(id) => void deleteConversation(id)}
       />
+      {railOpen && (
+        <button type="button" className="scrim" onClick={() => setRailOpen(false)} aria-label="Đóng danh sách hội thoại" />
+      )}
       <div className="mobile-bar">
         <button type="button" className="text-button" onClick={() => setRailOpen((o) => !o)} aria-expanded={railOpen}>
           Hội thoại

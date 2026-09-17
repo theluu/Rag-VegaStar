@@ -80,7 +80,8 @@ button {
   height: 100dvh;
 }
 
-.mobile-bar {
+.mobile-bar,
+.scrim {
   display: none;
 }
 
@@ -224,6 +225,7 @@ button {
 /* ---------- Bản đồ ---------- */
 .chart {
   position: relative;
+  isolation: isolate; /* giữ z-index của control bản đồ bên trong vùng bản đồ */
   min-width: 0;
   min-height: 0;
   background: var(--shoal-soft);
@@ -644,6 +646,10 @@ button {
     grid-template-rows: auto 1fr;
   }
 
+  .scrim {
+    display: block;
+  }
+
   .mobile-bar {
     display: flex;
     justify-content: space-between;
@@ -683,7 +689,14 @@ button {
 
   .rail-open .rail {
     transform: none;
-    box-shadow: 0 0 0 100vmax rgb(15 42 61 / 0.4);
+  }
+
+  .scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 15;
+    border: 0;
+    background: rgb(15 42 61 / 0.4);
   }
 
   .chart,
@@ -702,6 +715,8 @@ button {
 
   .chat {
     border-left: 0;
+    position: relative;
+    z-index: 1;
   }
 
   .chat-scroll,
