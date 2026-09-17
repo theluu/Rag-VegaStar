@@ -9,7 +9,7 @@ map $sent_http_content_type $cache_control {
 }
 
 server {
-    listen 80;
+    listen 8080;
     root /usr/share/nginx/html;
 
     gzip on;
@@ -24,13 +24,10 @@ server {
     add_header Permissions-Policy "geolocation=(), camera=(), microphone=()" always;
     add_header Cache-Control $cache_control always;
 
-    types {
-        application/manifest+json webmanifest;
-    }
-
     location = /llms.txt      { default_type "text/plain; charset=utf-8"; }
     location = /llms-full.txt { default_type "text/plain; charset=utf-8"; }
     location = /robots.txt    { default_type "text/plain; charset=utf-8"; }
+    location = /manifest.webmanifest { default_type "application/manifest+json"; }
 
     location /assets/ {
         # Tên file có hash → cache vĩnh viễn
