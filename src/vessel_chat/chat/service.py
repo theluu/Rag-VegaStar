@@ -10,7 +10,7 @@ import asyncpg
 
 from ..config import Settings
 from ..guardrails.input import INJECTION_NOTICE, Moderator, check_input
-from ..guardrails.output import OutputGuard, find_ungrounded_numbers, source_numbers
+from ..guardrails.output import OutputGuard, extract_answer_numbers, find_ungrounded_numbers, source_numbers
 from ..llm.client import Embedder, LLMClient
 from ..llm.prompts import SYSTEM_PROMPT
 from ..memory.manager import MemoryManager
@@ -21,6 +21,7 @@ from ..timeutil import iso
 from ..tools import ToolContext, ToolResult, execute_tool, openai_tool_specs
 from ..tools.cache import ToolCache
 from .events import Event
+from .evidence import build_evidence, cited_ids
 
 log = logging.getLogger(__name__)
 
@@ -150,6 +151,7 @@ class ChatService:
                 yield Event("error", {"code": "not_found", "message": "Hội thoại không tồn tại"})
                 return
             turn = await conv_repo.next_turn_no(conn, conv_id)
+            evidence_base = await conv_repo.count_tool_messages(conn, conv_id)
             await conv_repo.add_message(conn, conv_id, turn, "user", text)
             if turn == 1 and conv["title"] == DEFAULT_TITLE:
                 await conv_repo.rename_conversation(conn, conv_id, text.strip()[:TITLE_MAX_CHARS])
@@ -163,6 +165,7 @@ class ChatService:
         message_id = None
         data_ids: list[str] = []
         guard_log: list[dict] = []
+        evidence: list[dict] = []
         usage_total = {"prompt_tokens": 0, "completion_tokens": 0}
 
         # ---- Guardrail đầu vào: chặn trước khi tốn một lần gọi LLM
@@ -244,20 +247,26 @@ class ChatService:
                 for c in calls:
                     yield Event("tool_call", {"id": c.id, "name": c.name, "args": _parse_args(c.arguments)})
 
-                tool_ctx = ToolContext(pool=self.tool_pool, settings=s, focus=dict(focus), cache=self.tool_cache)
+                tool_ctx = ToolContext(pool=self.tool_pool, settings=s, focus=dict(focus), cache=self.tool_cache,
+                                       embedder=self.memory.embedder)
                 results = await asyncio.gather(*(execute_tool(tool_ctx, c.name, c.arguments) for c in calls))
                 for c, result in zip(calls, results):
-                    content = dict(result.content)
+                    eid = f"E{evidence_base + len(evidence) + 1}"
+                    content = {"evidence_id": eid, **result.content}
+                    ev = build_evidence(eid, c.name, _parse_args(c.arguments), result)
+                    evidence.append(ev)
                     for payload in result.map_data:
                         async with self.pool.acquire() as conn:
                             data_id = await map_repo.save_map_data(conn, conv_id, payload)
                         data_ids.append(data_id)
+                        ev["data_ids"].append(data_id)
                         content["map"] = "Đã hiển thị trên bản đồ cho người dùng."
                         yield Event("data", {"data_id": data_id, "kind": payload.kind, "bbox": payload.bbox,
                                              "summary": {k: v for k, v in payload.summary.items() if k != "vessels"},
                                              "tool_call_id": c.id})
                     yield Event("tool_result", {"id": c.id, "name": c.name, "ok": result.ok,
-                                                "summary": _short_summary(result)})
+                                                "summary": _short_summary(result), "evidence_id": eid})
+                    yield Event("evidence", ev)
                     body = json.dumps(content, ensure_ascii=False, default=str)
                     messages.append({"role": "tool", "tool_call_id": c.id, "content": body})
                     await self._save(conv_id, turn, "tool", body, tool_call_id=c.id, tool_name=c.name)
@@ -266,10 +275,26 @@ class ChatService:
                     async with self.pool.acquire() as conn:
                         await conv_repo.update_focus(conn, conv_id, focus)
 
-            # ---- Guardrail đầu ra: mọi con số phải truy được về dữ liệu đã có trong ngữ cảnh
-            if s.guardrail_grounding_enabled and answer and not guard.leaked:
-                sources = source_numbers([m["content"] for m in messages if isinstance(m.get("content"), str)])
-                ungrounded = find_ungrounded_numbers(answer, sources)
+            # ---- Kiểm chứng đầu ra: con số phải truy được về dữ liệu; mã chứng cứ phải tồn tại
+            verification = None
+            if answer and not guard.leaked:
+                checked = len(extract_answer_numbers(answer))
+                ungrounded: list[str] = []
+                if s.guardrail_grounding_enabled and checked:
+                    sources = source_numbers([m["content"] for m in messages if isinstance(m.get("content"), str)])
+                    ungrounded = find_ungrounded_numbers(answer, sources)
+                cited = list(dict.fromkeys(cited_ids(answer)))
+                last_id = evidence_base + len(evidence)
+                unknown = [c for c in cited if not 1 <= int(c[1:]) <= last_id]
+                verification = {
+                    "numbers_checked": checked,
+                    "ungrounded_numbers": ungrounded,
+                    "citations": cited,
+                    "unknown_citations": unknown,
+                    "evidence_count": len(evidence),
+                    "grounded": not ungrounded and not unknown,
+                }
+                yield Event("verification", verification)
                 if ungrounded:
                     guard_log.append({"stage": "output", "action": "warn", "kind": "ungrounded_numbers",
                                       "numbers": ungrounded})
@@ -278,8 +303,15 @@ class ChatService:
                         "Kiểm tra tự động: một số con số không tìm thấy trong dữ liệu đã truy vấn.",
                         numbers=ungrounded,
                     )
+                if unknown:
+                    guard_log.append({"stage": "output", "action": "warn", "kind": "unknown_citations",
+                                      "citations": unknown})
+                    yield _guardrail_event("output", "warn", "unknown_citations",
+                                           "Câu trả lời trích mã chứng cứ không tồn tại.", citations=unknown)
 
-            meta = {"data_ids": data_ids, "usage": usage_total}
+            meta = {"data_ids": data_ids, "usage": usage_total, "evidence": evidence}
+            if verification:
+                meta["verification"] = verification
             if guard_log:
                 meta["guardrail"] = guard_log
             message_id = await self._save(conv_id, turn, "assistant", answer, meta=meta)
@@ -287,7 +319,7 @@ class ChatService:
             log.info("Lượt %s của hội thoại %s bị huỷ (client ngắt kết nối)", turn, conv_id)
             CHAT_TURNS.labels("cancelled").inc()
             await self._save(conv_id, turn, "assistant", answer + " …[bị ngắt]",
-                             meta={"data_ids": data_ids, "interrupted": True})
+                             meta={"data_ids": data_ids, "evidence": evidence, "interrupted": True})
             self.memory.schedule_after_turn(conv_id, turn)
             raise
         except Exception as exc:  # noqa: BLE001
@@ -296,7 +328,7 @@ class ChatService:
             yield Event("error", {"code": "llm_error" if "openai" in type(exc).__module__ else "internal_error",
                                   "message": f"Không thể hoàn tất câu trả lời: {type(exc).__name__}"})
             message_id = await self._save(conv_id, turn, "assistant", answer,
-                                          meta={"data_ids": data_ids, "error": type(exc).__name__})
+                                          meta={"data_ids": data_ids, "evidence": evidence, "error": type(exc).__name__})
 
         self.memory.schedule_after_turn(conv_id, turn)
         self._record_turn(conv_id, turn, outcome, started, first_token_at, tools_used, usage_total)

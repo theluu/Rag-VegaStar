@@ -98,3 +98,10 @@ async def update_summary(conn: asyncpg.Connection, conv_id: str, summary: str, u
     await conn.execute(
         "UPDATE conversations SET summary = $2, summary_upto_turn = $3 WHERE id = $1", conv_id, summary, upto_turn
     )
+
+
+async def count_tool_messages(conn: asyncpg.Connection, conv_id: str) -> int:
+    """Số kết quả tool đã có — dùng để đánh số chứng cứ liên tục trong hội thoại."""
+    return await conn.fetchval(
+        "SELECT count(*) FROM messages WHERE conversation_id = $1 AND role = 'tool'", conv_id
+    )

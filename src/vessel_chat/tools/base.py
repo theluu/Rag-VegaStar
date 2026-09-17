@@ -46,6 +46,7 @@ class ToolContext:
     settings: Settings
     focus: dict = field(default_factory=dict)  # "đối tượng đang bàn" của hội thoại (chỉ đọc)
     cache: "ToolCache | None" = None
+    embedder: Any = None  # dùng cho tool kho tri thức
 
 
 class ToolInputError(Exception):

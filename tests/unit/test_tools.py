@@ -22,7 +22,7 @@ def test_specs_cover_all_tools():
     names = {s["function"]["name"] for s in openai_tool_specs()}
     assert names == {
         "search_vessels", "get_vessel_details", "find_company_vessels", "get_position_at",
-        "get_last_position", "get_track", "get_dark_gaps", "get_multi_tracks",
+        "get_last_position", "get_track", "get_dark_gaps", "get_multi_tracks", "search_knowledge",
     }
     for s in openai_tool_specs():
         assert s["type"] == "function" and s["function"]["description"]

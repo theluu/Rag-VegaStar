@@ -130,8 +130,6 @@ CREATE TABLE IF NOT EXISTS map_data (
 CREATE INDEX IF NOT EXISTS map_data_conv_idx ON map_data (conversation_id, created_at);
 
 -- ======================= Kho tri thức (RAG) =======================
-CREATE EXTENSION IF NOT EXISTS unaccent;
-
 CREATE TABLE IF NOT EXISTS kb_chunks (
     id           bigserial PRIMARY KEY,
     source       text NOT NULL,
@@ -143,6 +141,7 @@ CREATE TABLE IF NOT EXISTS kb_chunks (
     tsv          tsvector NOT NULL,
     updated_at   timestamptz NOT NULL DEFAULT now()
 );
+-- tsv dựng từ văn bản đã chuẩn hoá (bỏ dấu) phía Python để khớp cách chuẩn hoá câu truy vấn
 -- Kho tri thức dùng chung cho mọi hội thoại → index ANN phù hợp
 CREATE INDEX IF NOT EXISTS kb_chunks_embedding_idx ON kb_chunks USING hnsw (embedding vector_cosine_ops);
 CREATE INDEX IF NOT EXISTS kb_chunks_tsv_idx ON kb_chunks USING gin (tsv);

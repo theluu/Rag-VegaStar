@@ -7,20 +7,13 @@ kết quả tool bị giới hạn, và đầu ra đi qua OutputGuard.
 
 import logging
 import re
-import unicodedata
 from dataclasses import dataclass, field
 from typing import Literal, Protocol
 
 from ..config import Settings
+from ..textutil import fold
 
 log = logging.getLogger(__name__)
-
-
-def fold(text: str) -> str:
-    """Chữ thường, bỏ dấu tiếng Việt, gộp khoảng trắng → so khớp mẫu ổn định."""
-    text = text.lower().replace("đ", "d")
-    text = "".join(c for c in unicodedata.normalize("NFD", text) if unicodedata.category(c) != "Mn")
-    return re.sub(r"\s+", " ", text)
 
 
 # (mẫu trên văn bản đã fold, trọng số, lý do)

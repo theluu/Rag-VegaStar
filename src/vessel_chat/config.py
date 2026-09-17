@@ -85,6 +85,7 @@ class Settings(BaseSettings):
 
     # --- RAG kho tri thức ---
     knowledge_dir: str = "knowledge"
+    rag_auto_ingest: bool = True
     rag_chunk_max_chars: int = 1400
     rag_candidates: int = 20
     rag_top_k: int = 4

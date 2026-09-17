@@ -286,3 +286,35 @@ async def test_moderation_blocks_flagged_input(settings, pool):
             assert any(e == "guardrail" and d["kind"] == "moderation" for e, d in events)
             ok = await chat(c, cid, "xin chào")
             assert not any(e == "guardrail" for e, _ in ok)
+
+
+async def test_evidence_and_verification_events(client):
+    cid = await new_conv(client)
+    client.llm.steps = [
+        Step(tool_calls=[("get_track", {"vessel": "BETA SEA", "start": "2026-09-11", "end": "2026-09-11"})]),
+        Step(text="Tàu BETA SEA có 24 điểm AIS và đi được một quãng ngắn [E1]. Mã sai [E7]."),
+    ]
+    events = await chat(client, cid, "hành trình BETA SEA ngày 11/09")
+    ev = next(d for e, d in events if e == "evidence")
+    assert ev["id"] == "E1" and ev["sources"] == ["ais_positions"] and ev["data_ids"]
+    result = next(d for e, d in events if e == "tool_result")
+    assert result["evidence_id"] == "E1"
+    ver = next(d for e, d in events if e == "verification")
+    assert ver["citations"] == ["E1", "E7"] and ver["unknown_citations"] == ["E7"]
+    assert ver["grounded"] is False
+    # kết quả tool gửi cho LLM mang mã chứng cứ
+    tool_msg = next(m for m in client.llm.requests[-1] if m["role"] == "tool")
+    assert json.loads(tool_msg["content"])["evidence_id"] == "E1"
+    msgs = (await client.get(f"/conversations/{cid}/messages")).json()
+    assert msgs[-1]["meta"]["evidence"][0]["id"] == "E1"
+    assert msgs[-1]["meta"]["verification"]["numbers_checked"] == 0
+
+    # lượt sau đánh số tiếp, không trùng
+    client.llm.steps = [
+        Step(tool_calls=[("get_last_position", {"vessel": "BETA SEA"})]),
+        Step(text="Vị trí cuối cùng lúc 23:00 [E2], hành trình trước đó [E1]."),
+    ]
+    events = await chat(client, cid, "còn vị trí cuối cùng?")
+    assert next(d for e, d in events if e == "evidence")["id"] == "E2"
+    ver = next(d for e, d in events if e == "verification")
+    assert ver["unknown_citations"] == [] and ver["grounded"] is True

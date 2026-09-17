@@ -5,6 +5,8 @@ tool_call    {id, name, args}                    — LLM yêu cầu gọi tool
 tool_result  {id, name, ok, summary}             — tool chạy xong (tóm tắt ngắn)
 data         {data_id, kind, bbox, summary, tool_call_id} — dữ liệu bản đồ sẵn sàng tại GET /map-data/{data_id}
 memory       {window_turns, summary_used, retrieved}     — (debug) ngữ cảnh bộ nhớ đã dùng
+evidence     {id, tool, label, ok, query, sources, facts, data_ids} — chứng cứ của một lần gọi tool (mã E#)
+verification {numbers_checked, ungrounded_numbers, citations, unknown_citations, grounded} — kiểm chứng câu trả lời
 guardrail    {stage, action, kind, message, …}   — guardrail chặn / cảnh báo / che nội dung
 error        {code, message}                     — lỗi; stream vẫn kết thúc bằng done
 done         {message_id, turn, usage}           — kết thúc lượt

@@ -1,4 +1,4 @@
-from . import gap_tools, position_tools, vessel_tools  # noqa: F401  (đăng ký tool)
+from . import gap_tools, knowledge_tools, position_tools, vessel_tools  # noqa: F401  (đăng ký tool)
 from .base import (
     REGISTRY,
     MapPayload,

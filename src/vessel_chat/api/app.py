@@ -5,6 +5,7 @@
 
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,6 +19,7 @@ from ..db import create_pool
 from ..guardrails.input import Moderator
 from ..llm.client import Embedder, LLMClient, OpenAIEmbedder, OpenAILLM, OpenAIModerator
 from ..observability import MetricsMiddleware, configure_logging
+from ..rag.store import ingest_directory
 from . import routes_chat, routes_conversations, routes_map
 from .security import RateLimiter, SecurityMiddleware, limit_api, require_api_key
 
@@ -43,6 +45,12 @@ def create_app(
         chat_moderator = moderator
         if chat_moderator is None and llm is None and settings.guardrail_moderation_enabled:
             chat_moderator = OpenAIModerator(settings)
+        if settings.rag_auto_ingest and Path(settings.knowledge_dir).is_dir():
+            try:
+                async with pool.acquire() as conn:
+                    await ingest_directory(conn, chat_embedder, settings.knowledge_dir, settings.rag_chunk_max_chars)
+            except Exception:  # noqa: BLE001
+                log.exception("Không đồng bộ được kho tri thức; tiếp tục chạy với dữ liệu hiện có")
         system_prompt = await build_system_prompt(pool)
         service = ChatService(pool, chat_llm, chat_embedder, settings, system_prompt,
                               tool_pool=tool_pool, moderator=chat_moderator)
