@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Vessel Chat API",
-    "description": "Chatbot tra cứu tàu biển: chat streaming (SSE), bộ nhớ dài hạn, dữ liệu bản đồ GeoJSON.",
-    "version": "0.1.0"
+    "description": "Chatbot tra cứu tàu biển: chat streaming (SSE), bộ nhớ dài hạn, kho tri thức (RAG), guardrails, dữ liệu bản đồ GeoJSON. Khi bật `API_KEYS`, gửi `X-API-Key` hoặc `Authorization: Bearer`.",
+    "version": "0.2.0"
   },
   "paths": {
     "/conversations": {
@@ -709,6 +709,11 @@
             "title": "Message Count",
             "default": 0
           },
+          "turn_count": {
+            "type": "integer",
+            "title": "Turn Count",
+            "default": 0
+          },
           "summary": {
             "type": "string",
             "title": "Summary"
@@ -758,6 +763,11 @@
           "message_count": {
             "type": "integer",
             "title": "Message Count",
+            "default": 0
+          },
+          "turn_count": {
+            "type": "integer",
+            "title": "Turn Count",
             "default": 0
           }
         },

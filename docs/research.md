@@ -6,7 +6,7 @@ Mục tiêu: chatbot trả lời **đúng số liệu** trên dữ liệu có c�
 
 | Lựa chọn | Tool calling | Tiếng Việt | Độ trễ / chi phí | Nhận xét |
 |---|---|---|---|---|
-| **OpenAI gpt-4o-mini** (đã chọn) | Tốt, hỗ trợ gọi nhiều tool song song, streaming tool call | Tốt | Nhanh; 0,15 / 0,60 USD cho 1 triệu token vào/ra | Đủ tốt cho việc định tuyến tới 8 tool có mô tả rõ; rẻ nên chạy kịch bản nhiều lần được. Đã có sẵn key. |
+| **OpenAI gpt-4o-mini** (đã chọn) | Tốt, hỗ trợ gọi nhiều tool song song, streaming tool call | Tốt | Nhanh; 0,15 / 0,60 USD cho 1 triệu token vào/ra | Đủ tốt cho việc định tuyến tới 9 tool có mô tả rõ; rẻ nên chạy kịch bản nhiều lần được. Đã có sẵn key. |
 | GPT-4o / GPT-4.1 | Rất tốt | Rất tốt | Đắt hơn khoảng 15 lần | Nên dùng nếu cần suy luận nhiều bước hoặc cần truyền đạt đủ mọi cảnh báo. Đổi chỉ bằng `LLM_MODEL`. |
 | Claude (Anthropic), Gemini | Rất tốt | Tốt | Tương đương | Cần viết thêm một lớp `LLMClient`; kiến trúc đã tách sẵn giao diện. |
 | Model mở (Qwen2.5-7B/14B, Llama 3.1 qua Ollama/vLLM) | Khá; dễ sinh JSON sai hoặc gọi sai tool | Qwen khá tốt | Không tốn phí API, nhưng cần GPU | Dùng được qua `OPENAI_BASE_URL` (API tương thích OpenAI). Cần prompt chặt hơn và kiểm tra tham số kỹ hơn (tầng tool đã có validation bằng Pydantic). |
@@ -71,4 +71,34 @@ Các thư viện khác: **FastAPI** (async, OpenAPI tự sinh), **sse-starlette*
 - B-tree `(vessel_id, event_ts)` cho các truy vấn "điểm gần nhất trước/sau" (LIMIT 1 theo index) và "hành trình trong khoảng".
 - `pg_trgm` cho tìm tên tàu và công ty chịu sai chính tả.
 
-Phần tính quãng đường và lọc nhiễu được làm bằng Python trên tập điểm của từng tàu (tối đa vài trăm điểm mỗi tàu), để dễ test đơn vị. Kết quả đã được đối chiếu với `ST_Length(geography)` trong `scripts/verify_facts.py`, chênh lệch dưới 0,5%. Khi dữ liệu lớn, phần này có thể chuyển xuống SQL; xem [architecture.md §10](architecture.md#10-hướng-mở-rộng-khi-dữ-liệu-lên-vài-chục-triệu-điểmngày).
+Phần tính quãng đường và lọc nhiễu được làm bằng Python trên tập điểm của từng tàu (tối đa vài trăm điểm mỗi tàu), để dễ test đơn vị. Kết quả đã được đối chiếu với `ST_Length(geography)` trong `scripts/verify_facts.py`, chênh lệch dưới 0,5%. Khi dữ liệu lớn, phần này có thể chuyển xuống SQL; xem [architecture.md §16](architecture.md#16-hướng-mở-rộng-khi-dữ-liệu-lên-vài-chục-triệu-điểmngày).
+
+## 7. Guardrails
+
+| Lựa chọn | Ưu | Nhược | Quyết định |
+|---|---|---|---|
+| **Heuristic có trọng số (regex VI/EN trên văn bản đã bỏ dấu)** | 0 ms, không tốn tiền, xác định, test được, chặn trước khi gọi LLM | Bỏ lọt cách diễn đạt mới | ✅ lớp đầu vào |
+| Gọi LLM phân loại mỗi câu hỏi | Hiểu ngữ nghĩa tốt hơn | Thêm 0,5–1 s và chi phí mỗi lượt; bản thân cũng có thể bị injection | Không dùng; ghi thành hướng mở rộng |
+| Model phân loại chuyên dụng (Llama Prompt Guard, Lakera) | Chính xác | Cần GPU hoặc dịch vụ ngoài | Hướng mở rộng |
+| OpenAI Moderation | Miễn phí, đa ngôn ngữ | Thêm một request mạng (~200 ms) | ✅ bật mặc định, cấu hình fail-open/closed |
+| NeMo Guardrails / Guardrails AI | Khung đầy đủ | Nặng, thêm DSL phải giải thích | Không dùng |
+
+Ở đầu ra, cách hiệu quả nhất để chống bịa số liệu là **kiểm chứng xác định**: mọi con số trong câu trả lời phải truy được về kết quả tool. Cách này rẻ hơn và đáng tin hơn nhờ một LLM thứ hai chấm. Lọc secret và lặp prompt được làm **ngay trên luồng stream** (giữ lại một đoạn đuôi), vì lọc sau khi đã gửi token thì đã quá muộn.
+
+Phòng thủ quan trọng nhất vẫn là kiến trúc: LLM không có quyền ghi, không viết SQL, chỉ gọi tool đọc có tham số trên pool chỉ đọc. Guardrail là lớp giảm rủi ro, không phải lớp duy nhất.
+
+## 8. RAG cho kiến thức nghiệp vụ
+
+- **Vì sao cần RAG** khi dữ liệu chính là bảng có cấu trúc: người phân tích còn hỏi "trạng thái này nghĩa là gì", "dark gap do đâu", "DWT khác GT thế nào". Để model tự trả lời thì dễ sai hoặc không nhất quán; kho tài liệu có kiểm soát cho câu trả lời có nguồn và kiểm chứng được.
+- **Nội dung:** 8 tài liệu tiếng Việt tự biên soạn từ các chuẩn (ITU-R M.1371, SOLAS, Bộ luật ISM, Công ước đo dung tích 1969) và đặc điểm của bộ dữ liệu.
+- **Chia đoạn theo tiêu đề** thay vì cắt theo số token cố định: mỗi đoạn là một ý trọn vẹn và trích dẫn được (`file › mục`).
+- **Tìm kiếm lai (vector + từ khoá) + RRF:** embedding bắt được ý nghĩa ("tàu đang neo" ≈ "At anchor"), còn từ khoá bắt được mã và thuật ngữ chính xác (`511`, `IMO`, `ISM`). RRF gộp hai bảng xếp hạng mà không phải hiệu chỉnh thang điểm. Văn bản được bỏ dấu cho full-text để câu hỏi gõ không dấu vẫn khớp.
+- **Vector DB:** vẫn là pgvector, nhưng với index HNSW (khác `memory_chunks`), vì kho tri thức dùng chung cho mọi hội thoại.
+- **Không dùng reranker cross-encoder:** kho chỉ có 31 đoạn và top-4 đã chính xác; nên thêm khi kho lên hàng nghìn đoạn.
+
+## 9. Đánh giá (harness)
+
+- **Đáp án chuẩn lấy từ dữ liệu bằng SQL**, không viết tay, nên đổi seed là có bộ câu hỏi mới (chống "học thuộc" kịch bản).
+- **Chấm xác định** (tool đã gọi, số liệu kèm dung sai, chuỗi, trích dẫn, từ chối) thay vì dùng LLM làm giám khảo: rẻ, lặp lại được, dễ debug. LLM-as-judge chỉ cần cho câu trả lời mô tả dài, và đã được ghi vào hướng mở rộng.
+- **Red-team** được đưa vào cùng bộ đánh giá, để mọi thay đổi prompt đều được kiểm tra cả độ đúng lẫn độ an toàn.
+- Harness chạy qua API thật, nên kiểm tra luôn cả middleware, guardrail, stream và chứng cứ, chứ không chỉ riêng LLM.

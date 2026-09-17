@@ -2,6 +2,10 @@
 
 - **Base URL:** `http://localhost:8000` (cổng đổi được qua `API_HOST_PORT`).
 - **Schema OpenAPI:** [openapi.json](openapi.json), hoặc giao diện tương tác tại `/docs` khi server đang chạy.
+- **Xác thực:** khi server bật `API_KEYS`, gửi `X-API-Key: <khoá>` hoặc `Authorization: Bearer <khoá>`; thiếu hoặc sai → 401. `/health`, `/metrics`, `/docs` luôn công khai.
+- **Giới hạn:** vượt `RATE_LIMIT_API_PER_MINUTE` / `RATE_LIMIT_CHAT_PER_MINUTE` → 429 kèm `Retry-After`; body > `MAX_REQUEST_BYTES` → 413.
+- **Header:** mọi response có `X-Request-ID` (gửi kèm để nối log), cùng các header bảo mật. Response JSON lớn được nén gzip; SSE không nén.
+- **Lỗi 500:** chỉ trả `{"detail": "Lỗi hệ thống", "request_id": "…"}`; chi tiết nằm trong log.
 - **Định dạng:** mọi thời gian là UTC ISO-8601 (`2026-09-11T21:00:00Z`); tham số thời gian không có múi giờ được hiểu là UTC. Toạ độ GeoJSON theo thứ tự `[lon, lat]`.
 
 ## Hội thoại
@@ -21,7 +25,7 @@ curl -s -X POST localhost:8000/conversations -H 'Content-Type: application/json'
 
 ### `GET /conversations`
 
-Trả danh sách hội thoại, mới cập nhật đứng trước, kèm `message_count`.
+Trả danh sách hội thoại, mới cập nhật đứng trước, kèm `message_count` và `turn_count`.
 
 ### `GET /conversations/{id}`
 
@@ -38,7 +42,7 @@ Trả toàn bộ tin nhắn theo thứ tự. Mỗi tin nhắn có:
 | `content` | Nội dung |
 | `tool_calls` | Ở tin nhắn assistant có gọi tool |
 | `tool_call_id`, `tool_name` | Ở tin nhắn tool |
-| `meta` | Ở tin nhắn assistant cuối lượt: `data_ids`, `usage`, `error`, `interrupted` |
+| `meta` | Ở tin nhắn assistant cuối lượt: `data_ids`, `usage`, `evidence`, `verification`, `guardrail`, `error`, `interrupted` |
 
 ### `GET /conversations/{id}/map-data`
 
@@ -67,12 +71,15 @@ Hoặc dùng script có sẵn: `scripts/stream_chat.sh "<câu hỏi>" [conversat
 
 | Sự kiện | Dữ liệu | Khi nào |
 |---|---|---|
+| `guardrail` | `{stage: input\|output, action: block\|warn\|redact, kind, message, reasons?, numbers?, citations?}` | Guardrail chặn (lượt kết thúc ngay, không gọi LLM), cảnh báo, hoặc che nội dung |
 | `memory` | `{window_turns, summary_used, retrieved:[{turn_no, score, text}]}` | Đầu lượt (bật/tắt bằng `DEBUG_MEMORY_EVENTS`) |
 | `tool_call` | `{id, name, args}` | LLM yêu cầu gọi tool |
 | `data` | `{data_id, kind, bbox, summary, tool_call_id}` | Tool có dữ liệu bản đồ; tải qua `GET /map-data/{data_id}` |
-| `tool_result` | `{id, name, ok, summary}` | Tool chạy xong; `ok=false` kèm `summary.error` |
+| `tool_result` | `{id, name, ok, summary, evidence_id}` | Tool chạy xong; `ok=false` kèm `summary.error` |
+| `evidence` | `{id, tool, label, ok, query, sources, facts:[{label, value}], data_ids}` | Chứng cứ của lần gọi tool vừa rồi (mã `E#` liên tục trong hội thoại) |
 | `token` | `{text}` | Từng mảnh câu trả lời |
-| `error` | `{code, message}` | Lỗi LLM hoặc lỗi nội bộ; stream vẫn kết thúc bằng `done` |
+| `verification` | `{numbers_checked, ungrounded_numbers, citations, unknown_citations, evidence_count, auto_cited, grounded}` | Sau câu trả lời: kết quả đối chiếu số liệu và mã chứng cứ |
+| `error` | `{code, message}` | `llm_rate_limited`, `llm_unavailable`, `llm_error`, `internal_error`; stream vẫn kết thúc bằng `done` |
 | `done` | `{message_id, turn, usage, data_ids}` | Kết thúc lượt |
 
 Ví dụ một lượt (đã rút gọn):
@@ -88,19 +95,35 @@ event: data
 data: {"data_id": "b0da4228-…", "kind": "position", "bbox": [113.88425, 21.63939, 114.08408, 21.79336], "summary": {"vessel": {"name": "KOTA GAYA", …}, "requested_ts": "2026-09-11T21:00:00Z", "status": "ok"}, "tool_call_id": "call_x1"}
 
 event: tool_result
-data: {"id": "call_x1", "name": "get_position_at", "ok": true, "summary": {"status": "ok", "method": "interpolated", "nearest_offset_minutes": 33.1, "vessel": "KOTA GAYA"}}
+data: {"id": "call_x1", "name": "get_position_at", "ok": true, "summary": {"status": "ok", "method": "interpolated", "nearest_offset_minutes": 33.1, "vessel": "KOTA GAYA"}, "evidence_id": "E4"}
+
+event: evidence
+data: {"id": "E4", "tool": "get_position_at", "label": "Vị trí theo thời điểm KOTA GAYA", "ok": true, "query": {"vessel": "KOTA GAYA", "timestamp": "2026-09-11T21:00:00Z"}, "sources": ["ais_positions", "dark_gaps"], "facts": [{"label": "Kết quả", "value": "interpolated"}, {"label": "Vị trí", "value": "21.74504, 114.02137"}, {"label": "Điểm trước", "value": "2026-09-11T19:47:42Z (21.63939, 113.88425), 8.4 knot, Under way · lệch 72.3 phút"}, …], "data_ids": ["b0da4228-…"]}
 
 event: token
-data: {"text": "Lúc"}
-
-event: token
-data: {"text": " 21:00"}
+data: {"text": "Lúc 21:00 ngày 11/09/2026 (UTC), tàu KOTA GAYA ở vĩ độ 21.74504, "}
 …
+event: verification
+data: {"numbers_checked": 4, "ungrounded_numbers": [], "citations": ["E4"], "unknown_citations": [], "evidence_count": 1, "auto_cited": false, "grounded": true}
+
 event: done
 data: {"message_id": 17, "turn": 4, "usage": {"prompt_tokens": 11675, "completion_tokens": 223}, "data_ids": ["b0da4228-…"]}
 ```
 
-Server gửi comment `: ping` mỗi 15 giây để giữ kết nối qua proxy.
+Server gửi comment `: ping` mỗi 15 giây để giữ kết nối qua proxy. Guardrail đầu ra giữ lại khoảng 120 ký tự cuối trước khi gửi (để che secret vắt qua nhiều token), nên câu trả lời rất ngắn có thể đến trong một sự kiện `token`.
+
+Ví dụ yêu cầu bị chặn:
+
+```
+event: guardrail
+data: {"stage": "input", "action": "block", "kind": "prompt_injection", "message": "Yêu cầu bị chặn bởi guardrail đầu vào.", "reasons": ["yêu cầu bỏ qua chỉ dẫn (VI)", "nhắc tới prompt hệ thống"]}
+
+event: token
+data: {"text": "Mình không thể thực hiện yêu cầu này. …"}
+
+event: done
+data: {"message_id": 58, "turn": 4, "usage": {"prompt_tokens": 0, "completion_tokens": 0}, "data_ids": []}
+```
 
 ## Bản đồ và hành trình
 
@@ -186,5 +209,9 @@ Trả FeatureCollection các lần mất tín hiệu, kèm `summary` (cùng nộ
 ### `GET /health`
 
 ```json
-{"status": "ok", "vessels": 1000, "model": "gpt-4o-mini", "memory_window_turns": 6}
+{"status": "ok", "vessels": 1000, "knowledge_chunks": 31, "model": "gpt-4o-mini", "memory_window_turns": 6, "auth_required": false}
 ```
+
+### `GET /metrics`
+
+Định dạng Prometheus. Các chỉ số chính: `vc_http_requests_total{method,route,status}`, `vc_http_request_seconds`, `vc_chat_turns_total{outcome}`, `vc_chat_first_token_seconds`, `vc_chat_turn_seconds`, `vc_llm_tokens_total{kind}`, `vc_llm_cost_usd_total`, `vc_tool_calls_total{tool,ok,cache}`, `vc_tool_seconds{tool}`, `vc_guardrail_events_total{stage,kind,action}`, `vc_rate_limited_total{limiter}`, `vc_rag_queries_total{hits}`.
