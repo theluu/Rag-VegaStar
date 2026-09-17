@@ -25,7 +25,9 @@ async def init_schema(conn: asyncpg.Connection, embedding_dim: int) -> None:
     await conn.execute(schema_sql(embedding_dim))
 
 
-async def create_pool(settings: Settings, dsn: str | None = None) -> asyncpg.Pool:
+async def create_pool(settings: Settings, dsn: str | None = None, readonly: bool = False) -> asyncpg.Pool:
+    """Pool kết nối. `readonly=True` dùng cho tool LLM: mọi transaction mặc định chỉ đọc
+    (phòng thủ nhiều lớp, dù tool vốn chỉ chạy SELECT có tham số)."""
     dsn = dsn or settings.database_url
     if not dsn:
         settings.require("database_url")
@@ -40,5 +42,10 @@ async def create_pool(settings: Settings, dsn: str | None = None) -> asyncpg.Poo
         min_size=settings.db_pool_min,
         max_size=settings.db_pool_max,
         init=_init_connection,
-        server_settings={"statement_timeout": str(settings.db_statement_timeout_ms), "timezone": "UTC"},
+        server_settings={
+            "statement_timeout": str(settings.db_statement_timeout_ms),
+            "timezone": "UTC",
+            "application_name": "vessel-chat-tools" if readonly else "vessel-chat",
+            **({"default_transaction_read_only": "on"} if readonly else {}),
+        },
     )

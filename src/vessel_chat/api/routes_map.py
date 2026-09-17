@@ -15,7 +15,7 @@ from ..tools import ToolContext, execute_tool
 from ..tools.base import ToolInputError
 from ..tools.common import Role, ShipTypeGroup, parse_range, resolve_company, resolve_vessel, time_range_json
 from ..tracks import build_multi_tracks
-from .deps import get_app_settings, get_pool
+from .deps import get_app_settings, get_pool, get_tool_pool
 
 router = APIRouter(tags=["map"])
 
@@ -33,7 +33,7 @@ async def get_map_data(data_id: UUID, pool: asyncpg.Pool = Depends(get_pool)):
 async def search_vessels(
     q: Annotated[str, Query(min_length=1, max_length=100)],
     limit: Annotated[int, Query(ge=1, le=50)] = 10,
-    pool: asyncpg.Pool = Depends(get_pool),
+    pool: asyncpg.Pool = Depends(get_tool_pool),
     settings: Settings = Depends(get_app_settings),
 ):
     async with pool.acquire() as conn:
@@ -46,7 +46,7 @@ async def vessel_dark_gaps(
     start: str | None = None,
     end: str | None = None,
     limit: Annotated[int, Query(ge=1, le=50)] = 50,
-    pool: asyncpg.Pool = Depends(get_pool),
+    pool: asyncpg.Pool = Depends(get_tool_pool),
     settings: Settings = Depends(get_app_settings),
 ):
     """GeoJSON các lần mất tín hiệu của một tàu (vessel = vessel_id / tên / MMSI / IMO)."""
@@ -71,7 +71,7 @@ async def get_tracks(
     ship_type_group: ShipTypeGroup | None = None,
     limit: Annotated[int | None, Query(ge=1)] = None,
     offset: Annotated[int, Query(ge=0)] = 0,
-    pool: asyncpg.Pool = Depends(get_pool),
+    pool: asyncpg.Pool = Depends(get_tool_pool),
     settings: Settings = Depends(get_app_settings),
 ):
     """Nhiều hành trình dạng GeoJSON FeatureCollection, phân trang theo tàu (limit/offset)."""

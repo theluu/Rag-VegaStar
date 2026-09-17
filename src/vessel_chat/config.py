@@ -59,9 +59,47 @@ class Settings(BaseSettings):
     api_host: str = "0.0.0.0"
     api_port: int = 8000
 
+    # --- Bảo mật ---
+    api_keys: str = ""  # danh sách phân tách dấu phẩy; rỗng = tắt xác thực
+    rate_limit_chat_per_minute: int = 20
+    rate_limit_api_per_minute: int = 300
+    trust_proxy_headers: bool = False
+    max_request_bytes: int = 64_000
+    metrics_enabled: bool = True
+    log_json: bool = True
+
+    # --- Chi phí ước tính (USD / 1M token) ---
+    price_input_per_m: float = 0.15
+    price_output_per_m: float = 0.60
+
+    # --- Cache kết quả tool ---
+    tool_cache_ttl_seconds: int = 3600
+    tool_cache_max_entries: int = 512
+
+    # --- Guardrails ---
+    guardrail_injection_block_score: float = 1.0
+    guardrail_moderation_enabled: bool = True
+    guardrail_moderation_model: str = "omni-moderation-latest"
+    guardrail_moderation_fail_open: bool = True
+    guardrail_grounding_enabled: bool = True
+
+    # --- RAG kho tri thức ---
+    knowledge_dir: str = "knowledge"
+    rag_chunk_max_chars: int = 1400
+    rag_candidates: int = 20
+    rag_top_k: int = 4
+    rag_min_score: float = 0.2
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+    @property
+    def api_key_list(self) -> list[str]:
+        return [k.strip() for k in self.api_keys.split(",") if k.strip()]
+
+    def cost_usd(self, prompt_tokens: int, completion_tokens: int) -> float:
+        return prompt_tokens / 1e6 * self.price_input_per_m + completion_tokens / 1e6 * self.price_output_per_m
 
     def require(self, *names: str) -> None:
         missing = [n.upper() for n in names if not getattr(self, n)]

@@ -3,6 +3,7 @@
 import asyncio
 import json
 import logging
+import time
 from collections.abc import AsyncIterator
 
 import asyncpg
@@ -11,6 +12,7 @@ from ..config import Settings
 from ..llm.client import Embedder, LLMClient
 from ..llm.prompts import SYSTEM_PROMPT
 from ..memory.manager import MemoryManager
+from ..observability import CHAT_DURATION, CHAT_TTFT, CHAT_TURNS, LLM_COST, LLM_TOKENS, log_event
 from ..repositories import conversations as conv_repo
 from ..repositories import map_data as map_repo
 from ..timeutil import iso
@@ -67,8 +69,17 @@ def _parse_args(raw: str):
 
 
 class ChatService:
-    def __init__(self, pool: asyncpg.Pool, llm: LLMClient, embedder: Embedder, settings: Settings, system_prompt: str):
+    def __init__(
+        self,
+        pool: asyncpg.Pool,
+        llm: LLMClient,
+        embedder: Embedder,
+        settings: Settings,
+        system_prompt: str,
+        tool_pool: asyncpg.Pool | None = None,
+    ):
         self.pool = pool
+        self.tool_pool = tool_pool or pool
         self.llm = llm
         self.settings = settings
         self.memory = MemoryManager(pool, llm, embedder, settings, system_prompt)
@@ -85,6 +96,25 @@ class ChatService:
                 return await conv_repo.add_message(conn, conv_id, turn, role, content, **kwargs)
 
         return await asyncio.shield(write())
+
+    def _record_turn(self, conv_id, turn, outcome, started, first_token_at, tools_used, usage) -> None:
+        duration = time.perf_counter() - started
+        ttft = None if first_token_at is None else first_token_at - started
+        cost = self.settings.cost_usd(usage["prompt_tokens"], usage["completion_tokens"])
+        CHAT_TURNS.labels(outcome).inc()
+        CHAT_DURATION.observe(duration)
+        if ttft is not None:
+            CHAT_TTFT.observe(ttft)
+        LLM_TOKENS.labels("prompt").inc(usage["prompt_tokens"])
+        LLM_TOKENS.labels("completion").inc(usage["completion_tokens"])
+        LLM_COST.inc(cost)
+        log_event(
+            log, "chat_turn",
+            conversation_id=conv_id, turn=turn, outcome=outcome, tools=tools_used,
+            ttft_s=None if ttft is None else round(ttft, 3), duration_s=round(duration, 3),
+            prompt_tokens=usage["prompt_tokens"], completion_tokens=usage["completion_tokens"],
+            cost_usd=round(cost, 6),
+        )
 
     async def run_turn(self, conv_id: str, text: str) -> AsyncIterator[Event]:
         lock = self._locks.setdefault(conv_id, asyncio.Lock())
@@ -107,6 +137,10 @@ class ChatService:
                 await conv_repo.rename_conversation(conn, conv_id, text.strip()[:TITLE_MAX_CHARS])
 
         focus = dict(conv["focus_state"] or {})
+        started = time.perf_counter()
+        first_token_at: float | None = None
+        tools_used: list[str] = []
+        outcome = "ok"
         answer = ""
         message_id = None
         data_ids: list[str] = []
@@ -128,6 +162,8 @@ class ChatService:
                 answer, calls = "", []
                 async for ev in self.llm.stream_chat(messages, tools):
                     if ev.type == "text":
+                        if first_token_at is None:
+                            first_token_at = time.perf_counter()
                         answer += ev.text
                         yield Event("token", {"text": ev.text})
                     elif ev.type == "tool_calls":
@@ -143,10 +179,11 @@ class ChatService:
                 messages.append({"role": "assistant", "content": answer or None, "tool_calls": call_dicts})
                 await self._save(conv_id, turn, "assistant", answer, tool_calls=call_dicts)
                 answer = ""
+                tools_used.extend(c.name for c in calls)
                 for c in calls:
                     yield Event("tool_call", {"id": c.id, "name": c.name, "args": _parse_args(c.arguments)})
 
-                tool_ctx = ToolContext(pool=self.pool, settings=s, focus=dict(focus))
+                tool_ctx = ToolContext(pool=self.tool_pool, settings=s, focus=dict(focus))
                 results = await asyncio.gather(*(execute_tool(tool_ctx, c.name, c.arguments) for c in calls))
                 for c, result in zip(calls, results):
                     content = dict(result.content)
@@ -172,11 +209,13 @@ class ChatService:
                                           meta={"data_ids": data_ids, "usage": usage_total})
         except asyncio.CancelledError:
             log.info("Lượt %s của hội thoại %s bị huỷ (client ngắt kết nối)", turn, conv_id)
+            CHAT_TURNS.labels("cancelled").inc()
             await self._save(conv_id, turn, "assistant", answer + " …[bị ngắt]",
                              meta={"data_ids": data_ids, "interrupted": True})
             self.memory.schedule_after_turn(conv_id, turn)
             raise
         except Exception as exc:  # noqa: BLE001
+            outcome = "error"
             log.exception("Lỗi khi xử lý lượt %s của hội thoại %s", turn, conv_id)
             yield Event("error", {"code": "llm_error" if "openai" in type(exc).__module__ else "internal_error",
                                   "message": f"Không thể hoàn tất câu trả lời: {type(exc).__name__}"})
@@ -184,4 +223,5 @@ class ChatService:
                                           meta={"data_ids": data_ids, "error": type(exc).__name__})
 
         self.memory.schedule_after_turn(conv_id, turn)
+        self._record_turn(conv_id, turn, outcome, started, first_token_at, tools_used, usage_total)
         yield Event("done", {"message_id": message_id, "turn": turn, "usage": usage_total, "data_ids": data_ids})

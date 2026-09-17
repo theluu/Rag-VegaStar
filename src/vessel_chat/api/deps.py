@@ -10,6 +10,11 @@ def get_pool(request: Request) -> asyncpg.Pool:
     return request.app.state.pool
 
 
+def get_tool_pool(request: Request) -> asyncpg.Pool:
+    """Pool chỉ đọc cho các truy vấn dữ liệu tàu."""
+    return request.app.state.tool_pool
+
+
 def get_service(request: Request) -> ChatService:
     return request.app.state.service
 

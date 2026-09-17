@@ -3,6 +3,7 @@
 import asyncio
 import json
 import logging
+import time
 from dataclasses import dataclass, field
 from typing import Any, ClassVar
 
@@ -10,6 +11,7 @@ import asyncpg
 from pydantic import BaseModel, ValidationError
 
 from ..config import Settings
+from ..observability import TOOL_CALLS, TOOL_LATENCY
 
 log = logging.getLogger(__name__)
 
@@ -91,6 +93,15 @@ def error_result(message: str, **extra) -> ToolResult:
 
 async def execute_tool(ctx: ToolContext, name: str, raw_args: str | None) -> ToolResult:
     """Chạy tool theo tên; mọi lỗi được chuyển thành kết quả {"error": ...} cho LLM tự xử lý."""
+    started = time.perf_counter()
+    result = await _execute(ctx, name, raw_args)
+    label = name if name in REGISTRY else "unknown"
+    TOOL_LATENCY.labels(label).observe(time.perf_counter() - started)
+    TOOL_CALLS.labels(label, str(result.ok).lower(), "miss").inc()
+    return result
+
+
+async def _execute(ctx: ToolContext, name: str, raw_args: str | None) -> ToolResult:
     tool = REGISTRY.get(name)
     if tool is None:
         return error_result(f"Tool không tồn tại: {name}")

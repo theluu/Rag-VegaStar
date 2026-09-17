@@ -6,14 +6,19 @@
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import JSONResponse, Response
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from ..chat.service import ChatService, build_system_prompt
 from ..config import Settings, get_settings
 from ..db import create_pool
 from ..llm.client import Embedder, LLMClient, OpenAIEmbedder, OpenAILLM
+from ..observability import MetricsMiddleware, configure_logging
 from . import routes_chat, routes_conversations, routes_map
+from .security import RateLimiter, SecurityMiddleware, limit_api, require_api_key
 
 log = logging.getLogger(__name__)
 
@@ -25,54 +30,97 @@ def create_app(settings: Settings | None = None, llm: LLMClient | None = None, e
     async def lifespan(app: FastAPI):
         settings.require("database_url")
         pool = await create_pool(settings)
+        tool_pool = await create_pool(settings, readonly=True)
         chat_llm = llm or OpenAILLM(settings)
         chat_embedder = embedder or OpenAIEmbedder(settings)
         system_prompt = await build_system_prompt(pool)
-        service = ChatService(pool, chat_llm, chat_embedder, settings, system_prompt)
-        app.state.settings = settings
+        service = ChatService(pool, chat_llm, chat_embedder, settings, system_prompt, tool_pool=tool_pool)
         app.state.pool = pool
+        app.state.tool_pool = tool_pool
         app.state.service = service
-        log.info("API sẵn sàng (model=%s, window=%s lượt)", settings.llm_model, settings.memory_window_turns)
+        log.info(
+            "API sẵn sàng",
+            extra={"fields": {
+                "model": settings.llm_model,
+                "memory_window_turns": settings.memory_window_turns,
+                "auth": bool(settings.api_key_list),
+            }},
+        )
         try:
             yield
         finally:
             await service.close()
+            await tool_pool.close()
             await pool.close()
 
     app = FastAPI(
         title="Vessel Chat API",
-        version="0.1.0",
-        description="Chatbot tra cứu tàu biển: chat streaming (SSE), bộ nhớ dài hạn, dữ liệu bản đồ GeoJSON.",
+        version="0.2.0",
+        description=(
+            "Chatbot tra cứu tàu biển: chat streaming (SSE), bộ nhớ dài hạn, kho tri thức (RAG), "
+            "guardrails, dữ liệu bản đồ GeoJSON. Khi bật `API_KEYS`, gửi `X-API-Key` hoặc `Authorization: Bearer`."
+        ),
         lifespan=lifespan,
     )
+    # Trạng thái không phụ thuộc DB gắn ngay để dependency dùng được cả khi test
+    app.state.settings = settings
+    app.state.api_limiter = RateLimiter(settings.rate_limit_api_per_minute)
+    app.state.chat_limiter = RateLimiter(settings.rate_limit_chat_per_minute)
+
+    # Thứ tự: middleware thêm sau nằm ngoài cùng
+    app.add_middleware(GZipMiddleware, minimum_size=1024)
     if settings.cors_origin_list:
         app.add_middleware(
             CORSMiddleware,
             allow_origins=settings.cors_origin_list,
-            allow_methods=["*"],
-            allow_headers=["*"],
+            allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+            allow_headers=["Content-Type", "Authorization", "X-API-Key", "X-Request-ID"],
+            expose_headers=["X-Request-ID", "Retry-After"],
+            max_age=600,
         )
-    app.include_router(routes_conversations.router)
-    app.include_router(routes_chat.router)
-    app.include_router(routes_map.router)
+    app.add_middleware(SecurityMiddleware, max_request_bytes=settings.max_request_bytes)
+    if settings.metrics_enabled:
+        app.add_middleware(MetricsMiddleware)
+
+    protected = [Depends(require_api_key), Depends(limit_api)]
+    app.include_router(routes_conversations.router, dependencies=protected)
+    app.include_router(routes_chat.router, dependencies=[Depends(require_api_key)])
+    app.include_router(routes_map.router, dependencies=protected)
+
+    @app.exception_handler(Exception)
+    async def unhandled(request: Request, exc: Exception):
+        request_id = getattr(request.state, "request_id", None) or request.scope.get("state", {}).get("request_id")
+        log.exception("Lỗi không xử lý", extra={"fields": {"request_id": request_id, "path": request.url.path}})
+        # Không lộ chi tiết nội bộ ra ngoài
+        return JSONResponse(status_code=500, content={"detail": "Lỗi hệ thống", "request_id": request_id})
 
     @app.get("/health", tags=["system"])
     async def health(request: Request):
         async with request.app.state.pool.acquire() as conn:
             vessels = await conn.fetchval("SELECT count(*) FROM vessels")
+            kb_chunks = await conn.fetchval("SELECT count(*) FROM kb_chunks")
         return {
             "status": "ok",
             "vessels": vessels,
+            "knowledge_chunks": kb_chunks,
             "model": settings.llm_model,
             "memory_window_turns": settings.memory_window_turns,
+            "auth_required": bool(settings.api_key_list),
         }
+
+    if settings.metrics_enabled:
+
+        @app.get("/metrics", tags=["system"], include_in_schema=False)
+        async def metrics():
+            return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
     return app
 
 
 def _make_default_app() -> FastAPI:
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
-    return create_app()
+    settings = get_settings()
+    configure_logging(settings.log_json)
+    return create_app(settings)
 
 
 app = _make_default_app()

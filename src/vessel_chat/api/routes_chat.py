@@ -8,6 +8,7 @@ from sse_starlette.sse import EventSourceResponse
 from ..chat.service import ChatService
 from ..repositories import conversations as conv_repo
 from .deps import get_pool, get_service
+from .security import limit_chat
 
 router = APIRouter(tags=["chat"])
 
@@ -19,6 +20,7 @@ class ChatRequest(BaseModel):
 @router.post(
     "/conversations/{conv_id}/chat",
     response_class=EventSourceResponse,
+    dependencies=[Depends(limit_chat)],
     responses={200: {"content": {"text/event-stream": {}},
                      "description": "Server-Sent Events: token, tool_call, tool_result, data, memory, error, done"}},
 )

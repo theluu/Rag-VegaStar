@@ -44,7 +44,7 @@ async def pool(settings):
 
     # Bảng memory_chunks phụ thuộc số chiều embedding → dựng lại schema hội thoại cho test
     conn = await asyncpg.connect(settings.database_url)
-    await conn.execute("DROP TABLE IF EXISTS memory_chunks, map_data, messages, conversations CASCADE")
+    await conn.execute("DROP TABLE IF EXISTS memory_chunks, kb_chunks, map_data, messages, conversations CASCADE")
     await conn.close()
 
     p = await create_pool(settings)
