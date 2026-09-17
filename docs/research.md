@@ -102,3 +102,39 @@ Phòng thủ quan trọng nhất vẫn là kiến trúc: LLM không có quyền 
 - **Chấm xác định** (tool đã gọi, số liệu kèm dung sai, chuỗi, trích dẫn, từ chối) thay vì dùng LLM làm giám khảo: rẻ, lặp lại được, dễ debug. LLM-as-judge chỉ cần cho câu trả lời mô tả dài, và đã được ghi vào hướng mở rộng.
 - **Red-team** được đưa vào cùng bộ đánh giá, để mọi thay đổi prompt đều được kiểm tra cả độ đúng lẫn độ an toàn.
 - Harness chạy qua API thật, nên kiểm tra luôn cả middleware, guardrail, stream và chứng cứ, chứ không chỉ riêng LLM.
+
+## 10. Các công nghệ đã cân nhắc nhưng không dùng
+
+Nguyên tắc chung: chỉ thêm một hệ thống lưu trữ khi PostgreSQL không đáp ứng được nhu cầu cụ thể. Mỗi hệ thống thêm vào kéo theo một container, một đường đồng bộ dữ liệu, một bề mặt bảo mật, và người chấm phải dựng thêm dịch vụ.
+
+### 10.1 Neo4j (graph database)
+
+- **Nhu cầu thực tế:** bảng `ownership` chỉ nối tàu với công ty theo 6 vai trò (4.127 dòng). Mọi câu hỏi của đề đi 1–2 bước ("tàu này của ai" → "công ty đó còn tàu nào"), PostgreSQL xử lý bằng một phép JOIN có chỉ mục trong vài mili giây.
+- **Phần nặng không phải đồ thị:** phần lớn câu hỏi là vị trí theo thời gian, hành trình, quãng đường, mất tín hiệu, là việc của PostGIS và chỉ mục thời gian.
+- **Rủi ro:** để LLM tự sinh Cypher tương đương text-to-SQL, mở lại đúng rủi ro mà thiết kế công cụ có tham số đã tránh.
+- **Khi nào nên dùng:** phân tích mạng lưới nhiều tầng, như chuỗi sở hữu hưởng lợi (tàu → công ty vỏ → công ty mẹ → cá nhân), khoảng cách tới thực thể bị trừng phạt, cụm công ty chung địa chỉ/giám đốc, cụm tàu từng gặp nhau trên biển. Dữ liệu hiện tại không có các quan hệ này.
+- **Lộ trình:** thử `WITH RECURSIVE` hoặc extension Apache AGE ngay trên PostgreSQL trước; tách sang Neo4j khi đồ thị lớn và truy vấn thật sự sâu. Dù dùng hệ nào, LLM vẫn chỉ gọi công cụ có tham số.
+
+### 10.2 Elasticsearch / OpenSearch
+
+| Nhu cầu tìm kiếm | Cách đang làm | Quy mô |
+|---|---|---|
+| Tên tàu gõ sai chính tả | `pg_trgm` + chuẩn hoá tên | 1.000 tàu |
+| Tên công ty có biến thể | chuẩn hoá hậu tố pháp lý + trigram | khoảng 960 công ty |
+| Kho tri thức (RAG) | vector (pgvector HNSW) + full-text (tsvector, bỏ dấu), gộp RRF | 31 đoạn |
+| MMSI, IMO, hô hiệu | chỉ mục B-tree, khớp chính xác | vài ms |
+
+- **Kết quả hiện tại đã đủ:** truy vấn công cụ mất 1–80 ms, độ trễ chủ yếu nằm ở LLM (khoảng 4 giây); harness đạt 42/42, kể cả các ca tên sai chính tả và câu hỏi kiến thức.
+- **Chi phí nếu thêm:** dịch vụ JVM khoảng 1–2 GB RAM, cấu hình bảo mật riêng, pipeline đồng bộ từ PostgreSQL và nguy cơ lệch dữ liệu giữa hai nơi.
+- **Khi nào nên dùng:** tìm kiếm toàn văn trên khối tài liệu lớn (tin tức hàng hải, danh sách trừng phạt, báo cáo kiểm tra cảng, hồ sơ công ty; hàng triệu văn bản, nhiều ngôn ngữ), hoặc danh bạ tàu/công ty hàng triệu bản ghi cần gợi ý khi gõ, lọc nhiều tiêu chí và thống kê theo nhóm.
+- **Lộ trình:** tối ưu PostgreSQL trước (`unaccent`, HNSW, reranker), rồi Meilisearch/Typesense nếu cần công cụ tìm kiếm nhẹ, cuối cùng mới OpenSearch/Elasticsearch, đồng bộ qua hàng đợi (CDC). Dữ liệu AIS theo thời gian hợp với TimescaleDB hoặc ClickHouse hơn là Elasticsearch.
+- **Dùng cho log thì hợp lý:** log JSON một dòng mỗi lượt đã sẵn định dạng để đẩy vào ELK/Kibana hoặc Loki khi cần quan sát tập trung. Đây là công cụ vận hành, không nằm trong luồng trả lời của chatbot.
+
+### 10.3 Tóm tắt
+
+| Công nghệ | Quyết định | Điều kiện để xem xét lại |
+|---|---|---|
+| Neo4j | Không dùng | Quan hệ sở hữu nhiều tầng, phân tích mạng lưới trừng phạt |
+| Elasticsearch / OpenSearch | Không dùng cho chatbot | Hàng triệu tài liệu văn bản cần full-text; log tập trung (ELK) |
+| Vector DB riêng (Qdrant, Pinecone…) | Không dùng (xem mục 3) | Ký ức hoặc kho tri thức lên hàng chục triệu vector |
+| LangChain / LangGraph | Không dùng (xem mục 4) | Luồng nhiều tác tử phức tạp, cần công cụ theo dõi sẵn có |
