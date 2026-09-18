@@ -1,5 +1,7 @@
 # Vessel Chat: chatbot tra cứu tàu biển
 
+**Bản chạy thử:** https://vegastar.themeshub.net (đăng nhập `demo` / `demo`)
+
 Chatbot LLM trả lời câu hỏi tiếng Việt về 1.000 tàu (AIS 10–12/09/2026): tàu của ai, đang ở đâu, đã đi những đâu, có tắt AIS không. **Mỗi câu trả lời có chứng cứ** và được hệ thống tự đối chiếu số liệu.
 
 - **API chat streaming (SSE).** Các sự kiện gồm `token`, `tool_call`, `tool_result`, `evidence`, `verification`, `guardrail`, `data`, `memory`, `error`, `done`.
@@ -45,6 +47,7 @@ Chatbot LLM trả lời câu hỏi tiếng Việt về 1.000 tàu (AIS 10–12/0
 | [docs/architecture.md](docs/architecture.md) | Kiến trúc, luồng xử lý, bộ nhớ, schema, tool, hạn chế, chi phí, hướng mở rộng |
 | [docs/research.md](docs/research.md) | Lựa chọn LLM, embedding, vector DB, framework; so sánh các chiến lược bộ nhớ; vì sao không dùng Neo4j, Elasticsearch |
 | [docs/api.md](docs/api.md) · [docs/openapi.json](docs/openapi.json) | Các endpoint và sự kiện SSE, kèm ví dụ `curl` |
+| [docs/deploy.md](docs/deploy.md) | Triển khai lên server: nginx + SSL, systemd, PostgreSQL sẵn có, cách cập nhật |
 | [SECURITY.md](SECURITY.md) | Mô hình đe doạ, các lớp phòng thủ, việc cần làm trước khi lên production |
 | [results/](results/README.md) | Transcript chạy 5 kịch bản của đề và 4 biến thể; đáp án đối chiếu bằng SQL |
 | [results/eval_report.md](results/eval_report.md) | Báo cáo harness đánh giá: tỉ lệ đạt theo nhóm và tiêu chí, độ trễ, chi phí |

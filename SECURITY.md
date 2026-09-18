@@ -34,6 +34,12 @@ Tài liệu mô tả mô hình đe doạ, các biện pháp đã triển khai v�
 - Đăng nhập dùng tài khoản cấu hình sẵn, phù hợp môi trường dev/demo. Token là stateless nên không thu hồi riêng từng phiên được (đổi `SESSION_SECRET` hoặc xoá người dùng khỏi `AUTH_USERS` để thu hồi); token lưu trong `localStorage` nên phụ thuộc CSP chặt để hạn chế XSS. Production nên dùng OIDC / SSO, cookie `HttpOnly` và phân quyền theo hội thoại.
 - Hiện chưa có đa người thuê (multi-tenant): mọi client hợp lệ đều thấy mọi hội thoại.
 
+## Bản chạy thử (vegastar.themeshub.net)
+
+API chỉ lắng nghe `127.0.0.1`, nginx là cửa ngõ duy nhất (HTTPS, HSTS, CSP); `/metrics`, `/docs`, `/redoc` bị chặn ở proxy;
+service chạy user không đặc quyền với `ProtectSystem=strict` và giới hạn RAM. Tài khoản `demo/demo` chỉ dành cho
+người xem demo và nên đổi khi để công khai lâu dài. Chi tiết: [docs/deploy.md](docs/deploy.md).
+
 ## Việc cần làm trước khi lên production
 
 - [ ] Đổi mật khẩu `demo` (hoặc dùng chuỗi băm từ `scripts/hash_password.py`), đặt `SESSION_SECRET` ngẫu nhiên dài; không bật `VITE_LOGIN_HINT` nếu không muốn lộ tài khoản.
