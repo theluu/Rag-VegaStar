@@ -59,6 +59,9 @@ class Settings(BaseSettings):
     cors_origins: str = ""
     api_host: str = "0.0.0.0"
     api_port: int = 8000
+    # Tiền tố khi API đứng sau reverse proxy (vd. "/api"); để trống khi phục vụ ở gốc.
+    # Dùng cho link trong /docs và OpenAPI, không ảnh hưởng đường dẫn route.
+    root_path: str = ""
 
     # --- Bảo mật ---
     api_keys: str = ""  # danh sách phân tách dấu phẩy; rỗng = tắt xác thực

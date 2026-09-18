@@ -101,6 +101,7 @@ def create_app(
             "guardrails, dữ liệu bản đồ GeoJSON. Khi bật `API_KEYS`, gửi `X-API-Key` hoặc `Authorization: Bearer`."
         ),
         lifespan=lifespan,
+        root_path=settings.root_path,
     )
     # Trạng thái không phụ thuộc DB gắn ngay để dependency dùng được cả khi test
     app.state.settings = settings
