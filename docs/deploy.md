@@ -11,8 +11,10 @@ Compose (mô tả trong [README](../README.md)) vẫn giữ nguyên cho máy cá
 ```
 Internet ──► nginx (443, SSL Let's Encrypt)
                ├── /            → /var/www/vegastar        (giao diện đã build)
+               ├── /pitch/      → bản trình bày 6 slide (trang tĩnh riêng)
                ├── /api/        → 127.0.0.1:8011           (FastAPI, systemd: vegastar-api)
-               └── /metrics, /docs → 403 (chỉ dùng nội bộ)
+               │                   /api/docs mở cho người đánh giá, /api/metrics bị chặn
+               └── /metrics, /docs (đường dẫn gốc) → 403
 
 PostgreSQL 14 của hệ thống: database `vessel` (PostGIS 3.2, pgvector 0.8, pg_trgm)
 ```
@@ -24,7 +26,8 @@ PostgreSQL 14 của hệ thống: database `vessel` (PostGIS 3.2, pgvector 0.8, 
 | Dữ liệu CSV | `/opt/vegastar/data` |
 | Giao diện đã build | `/var/www/vegastar` (gồm `/pitch/` và `VegaStar-Tong-quan.pdf`) |
 | Service | `/etc/systemd/system/vegastar-api.service` |
-| nginx | `/etc/nginx/sites-available/vegastar.themeshub.net` |
+| nginx | `/etc/nginx/sites-available/vegastar.themeshub.net` (bản trong repo: [deploy/nginx/](../deploy/nginx/vegastar.themeshub.net.conf)) |
+| Service (bản trong repo) | [deploy/vegastar-api.service](../deploy/vegastar-api.service) |
 | Chứng chỉ | `/etc/letsencrypt/live/vegastar.themeshub.net` (certbot tự gia hạn) |
 
 ## Các bước đã làm
@@ -95,6 +98,14 @@ Kiểm tra sau khi cập nhật:
 curl -s https://vegastar.themeshub.net/api/health
 journalctl -u vegastar-api -n 30 --no-pager
 ```
+
+## Những chỗ dễ sai
+
+- **Build giao diện phải truyền biến môi trường của tên miền**, nếu không bundle sẽ trỏ API về `localhost`:
+  `VITE_API_BASE_URL=https://vegastar.themeshub.net/api VITE_SITE_URL=https://vegastar.themeshub.net npm run build`.
+  Kiểm tra nhanh sau khi deploy: `grep -rl "vegastar.themeshub.net/api" /var/www/vegastar/assets`.
+- **`try_files $uri $uri/ /index.html`**: thiếu `$uri/` thì `/pitch/` rơi về ứng dụng React thay vì trang tĩnh.
+- **Chặn `/api/metrics`**: endpoint Prometheus không có xác thực và lộ lưu lượng, chi phí.
 
 ## Vận hành
 
