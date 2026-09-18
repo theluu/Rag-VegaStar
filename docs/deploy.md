@@ -106,6 +106,7 @@ journalctl -u vegastar-api -n 30 --no-pager
   Kiểm tra nhanh sau khi deploy: `grep -rl "vegastar.themeshub.net/api" /var/www/vegastar/assets`.
 - **`try_files $uri $uri/ /index.html`**: thiếu `$uri/` thì `/pitch/` rơi về ứng dụng React thay vì trang tĩnh.
 - **Chặn `/api/metrics`**: endpoint Prometheus không có xác thực và lộ lưu lượng, chi phí.
+- **CSP phải cho phép máy chủ ảnh vệ tinh** (`https://server.arcgisonline.com`) nếu muốn dùng nút nền "Vệ tinh".
 
 ## Vận hành
 

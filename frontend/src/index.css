@@ -3152,3 +3152,45 @@ button:disabled {
 .pitch-cta:hover {
   background: rgb(255 255 255 / 0.12);
 }
+
+/* Nút đổi bản đồ nền (sáng / tối / vệ tinh) */
+.basemap-switch {
+  position: absolute;
+  top: 12px;
+  left: 52px;
+  z-index: 2;
+  display: flex;
+  padding: 3px;
+  border-radius: var(--r-md);
+  background: rgb(255 255 255 / 0.92);
+  box-shadow: var(--shadow-card);
+  backdrop-filter: blur(4px);
+}
+
+.basemap-switch button {
+  padding: 5px 11px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  color: var(--ink-2);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+}
+
+.basemap-switch button:hover {
+  color: var(--ink);
+  background: var(--sea-100);
+}
+
+.basemap-switch button[aria-checked='true'] {
+  background: var(--navy-900);
+  color: #fff;
+}
+
+@media (max-width: 880px) {
+  .basemap-switch {
+    top: auto;
+    bottom: 12px;
+    left: 12px;
+  }
+}

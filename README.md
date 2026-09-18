@@ -15,7 +15,7 @@ Chatbot LLM trả lời câu hỏi tiếng Việt về 1.000 tàu (AIS 10–12/0
 - **Đăng nhập.** Màn hình đăng nhập (tài khoản cấu hình trong `AUTH_USERS`, mặc định `demo` / `demo`); API chỉ phục vụ khi có token phiên hợp lệ.
 - **Bảo mật và vận hành.** API key, rate limit, header bảo mật và CSP, `/metrics` Prometheus, log JSON, cache kết quả tool, container không chạy root.
 - **Trang Thống kê vận hành.** Số lượt, tỉ lệ thành công, chi phí, độ trễ, công cụ, cache, guardrail, tỉ lệ trích chứng cứ, RAG, kết quả harness và quy mô dữ liệu; đọc từ cơ sở dữ liệu nên còn nguyên sau khi khởi động lại.
-- **Giao diện web + SEO/GEO.** Danh sách hội thoại, stream, thẻ chứng cứ, bản đồ MapLibre (vị trí, hành trình, mất tín hiệu, hàng chục nghìn điểm); Open Graph, JSON-LD, `llms.txt`.
+- **Giao diện web + SEO/GEO.** Danh sách hội thoại, stream, thẻ chứng cứ, bản đồ MapLibre (vị trí, hành trình, mất tín hiệu, hàng chục nghìn điểm; đổi nền sáng / tối / ảnh vệ tinh); Open Graph, JSON-LD, `llms.txt`.
 
 ![Nhiều hành trình trên bản đồ: 484 tàu hàng ngày 11/09, xếp hạng quãng đường theo màu tuyến](docs/images/ui-multi-tracks.png)
 

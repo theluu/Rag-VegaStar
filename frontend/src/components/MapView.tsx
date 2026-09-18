@@ -1,4 +1,5 @@
 import type { FeatureCollection } from 'geojson'
+import { BASEMAPS, basemapById, loadBasemap, saveBasemap, type BasemapId } from '../lib/basemaps'
 import {
   Map as MapLibreMap,
   NavigationControl,
@@ -29,8 +30,6 @@ export interface MapLayer {
   visible: boolean
 }
 
-const STYLE_URL =
-  (import.meta.env.VITE_MAP_STYLE_URL as string | undefined) || 'https://demotiles.maplibre.org/style.json'
 
 // Vùng dữ liệu mặc định lấy từ đề (102–118°E, 6–23°N); bản đồ sẽ tự zoom theo dữ liệu trả về
 const INITIAL_BOUNDS: [number, number, number, number] = [102, 6, 118, 23]
@@ -149,11 +148,12 @@ const REGION: FeatureCollection = {
   }],
 }
 
-function addDataRegion(map: MapLibreMap) {
+function addDataRegion(map: MapLibreMap, dark = false) {
   if (map.getSource('data-region')) return
   map.addSource('data-region', { type: 'geojson', data: REGION })
   map.addLayer({ id: 'data-region-line', type: 'line', source: 'data-region',
-    paint: { 'line-color': COLORS.ink, 'line-width': 1.2, 'line-opacity': 0.55, 'line-dasharray': [4, 3] } })
+    paint: { 'line-color': dark ? '#ffffff' : COLORS.ink, 'line-width': 1.2,
+             'line-opacity': dark ? 0.5 : 0.55, 'line-dasharray': [4, 3] } })
 }
 
 // Dịu màu nước và đất của style nền cho giống hải đồ; bỏ qua nếu style không có các lớp này
@@ -183,13 +183,15 @@ export function MapView({ layers, fitTo }: Props) {
   const mapRef = useRef<MapLibreMap | null>(null)
   const added = useRef(new Map<string, string[]>())
   const [ready, setReady] = useState(false)
+  const [basemap, setBasemap] = useState<BasemapId>(loadBasemap)
   const hover = useRef<Popup | null>(null)
+  const firstStyle = useRef(true)
 
   useEffect(() => {
     if (!container.current || mapRef.current) return
     const map = new MapLibreMap({
       container: container.current,
-      style: STYLE_URL,
+      style: basemapById(basemap).style,
       bounds: INITIAL_BOUNDS,
       fitBoundsOptions: { padding: 24 },
       attributionControl: { compact: true },
@@ -198,8 +200,8 @@ export function MapView({ layers, fitTo }: Props) {
     map.addControl(new ScaleControl({ unit: 'nautical' }), 'bottom-right')
     hover.current = new Popup({ closeButton: false, closeOnClick: false, className: 'hover-tip', offset: 10 })
     map.on('load', () => {
-      tintBasemap(map)
-      addDataRegion(map)
+      if (basemapById(basemap).tint) tintBasemap(map)
+      addDataRegion(map, basemapById(basemap).dark)
       // Container có thể chưa có kích thước lúc khởi tạo → đo lại rồi mới căn khung vùng dữ liệu
       map.resize()
       map.fitBounds(INITIAL_BOUNDS, { padding: 24, animate: false })
@@ -218,6 +220,26 @@ export function MapView({ layers, fitTo }: Props) {
       setReady(false)
     }
   }, [])
+
+  // Đổi bản đồ nền: setStyle xoá sạch source/layer → đánh dấu để effect bên dưới dựng lại
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    if (firstStyle.current) {
+      firstStyle.current = false
+      return
+    }
+    const choice = basemapById(basemap)
+    saveBasemap(basemap)
+    setReady(false)
+    added.current.clear()
+    map.setStyle(choice.style)
+    map.once('styledata', () => {
+      if (choice.tint) tintBasemap(map)
+      addDataRegion(map, choice.dark)
+      setReady(true)
+    })
+  }, [basemap])
 
   // Đồng bộ các lớp dữ liệu với bản đồ
   useEffect(() => {
@@ -300,5 +322,23 @@ export function MapView({ layers, fitTo }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fitTo, ready])
 
-  return <div ref={container} className="map" role="region" aria-label="Bản đồ vị trí và hành trình tàu" />
+  return (
+    <>
+      <div ref={container} className="map" role="region" aria-label="Bản đồ vị trí và hành trình tàu" />
+      <div className="basemap-switch" role="radiogroup" aria-label="Kiểu bản đồ nền">
+        {BASEMAPS.map((b) => (
+          <button
+            key={b.id}
+            type="button"
+            role="radio"
+            aria-checked={basemap === b.id}
+            title={b.title}
+            onClick={() => setBasemap(b.id)}
+          >
+            {b.label}
+          </button>
+        ))}
+      </div>
+    </>
+  )
 }

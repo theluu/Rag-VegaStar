@@ -20,5 +20,6 @@ FROM nginxinc/nginx-unprivileged:1.27-alpine
 # Template được envsubst khi khởi động → CSP khớp địa chỉ API và bản đồ thực tế
 COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 COPY --from=build /app/dist /usr/share/nginx/html
-ENV NGINX_ENVSUBST_FILTER="^(API_ORIGIN|MAP_ORIGIN)$"
+ENV NGINX_ENVSUBST_FILTER="^(API_ORIGIN|MAP_ORIGIN|SATELLITE_ORIGIN)$" \
+    SATELLITE_ORIGIN=https://server.arcgisonline.com
 EXPOSE 8080

@@ -348,6 +348,7 @@ Khi bật `AUTH_USERS` hoặc `API_KEYS`, mọi route trừ `/health`, `/auth/lo
 - Stream đọc bằng `fetch` + `ReadableStream`, vì `EventSource` không hỗ trợ POST. Bộ đọc SSE có test cho trường hợp sự kiện bị cắt qua nhiều mảnh.
 - Khi nhận sự kiện `data`, client tải `/map-data/{id}`, **thêm** một lớp mới (không xoá lớp cũ) và tự zoom tới lớp đó. Ô chú giải cho phép bật/tắt, xoá từng lớp, hoặc xoá toàn bộ bản đồ. Khi mở lại hội thoại cũ, 6 lớp gần nhất được nạp lại.
 - Mỗi câu trả lời: bong bóng câu hỏi, các bước tra cứu (icon, trạng thái, chip tham số, mã chứng cứ), câu trả lời Markdown với chip `[E#]`, huy hiệu kiểm chứng, thẻ chứng cứ, thông báo guardrail, nút phóng tới lớp bản đồ.
+- Bản đồ nền đổi được giữa **sáng** (OpenFreeMap liberty), **tối** (OpenFreeMap dark) và **ảnh vệ tinh** (Esri World Imagery, style raster dựng thẳng trong code). Lựa chọn lưu trong `localStorage`; `setStyle` xoá sạch source nên các lớp dữ liệu và khung vùng dữ liệu được dựng lại sau sự kiện `styledata`. CSP của nginx phải cho phép cả máy chủ ảnh vệ tinh (`SATELLITE_ORIGIN`).
 - Nhiều hành trình được vẽ bằng một lớp `line` WebGL duy nhất, màu lấy theo `color_index`. Server giảm mẫu đều khi vượt `MULTI_TRACK_MAX_POINTS`: 35,7 nghìn điểm của 484 tàu vẫn vẽ mượt; 1000 tàu × 3 ngày (171 nghìn điểm) được giảm còn khoảng 60 nghìn điểm.
 
 ## 14. Hạn chế đã biết

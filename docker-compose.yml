@@ -51,6 +51,8 @@ services:
       # Nguồn được phép trong Content-Security-Policy của trang
       API_ORIGIN: ${API_ORIGIN:-http://localhost:8000}
       MAP_ORIGIN: ${MAP_ORIGIN:-https://tiles.openfreemap.org}
+      # Ảnh vệ tinh (nút "Vệ tinh" trên bản đồ)
+      SATELLITE_ORIGIN: ${SATELLITE_ORIGIN:-https://server.arcgisonline.com}
     ports:
       - "${WEB_HOST_PORT:-5173}:8080"
     depends_on:
