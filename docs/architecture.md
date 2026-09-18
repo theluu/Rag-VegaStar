@@ -268,6 +268,12 @@ Tham số `vessel` nhận tên, MMSI, IMO, callsign hoặc `vessel_id`, và đư
 
 Mọi quyết định phát sự kiện `guardrail`, lưu trong `meta.guardrail` và đếm ở `vc_guardrail_events_total`. Cái giá của việc giữ đuôi là câu trả lời ngắn (dưới 120 ký tự) hiện ra một lần thay vì từng token.
 
+## 6b. Độ bền khi nhà cung cấp AI gặp sự cố
+
+- **`FallbackLLM`** giữ danh sách nhà cung cấp theo thứ tự ưu tiên. Lỗi ở nhà cung cấp đầu (hết hạn key, 5xx, timeout) → thử nhà cung cấp sau. Nếu lượt đó **đã phát ra chữ**, lỗi được ném ra thay vì đổi model giữa chừng, tránh câu trả lời ghép từ hai model khác nhau.
+- **`SecondOpinion`** (`chat/verifier.py`): sau khi trả lời, một model khác nhận câu hỏi, câu trả lời và bản rút gọn của chứng cứ rồi trả về JSON `{verdict, issues, note}`. Kết quả gắn vào sự kiện `verification` (`second_opinion`) và lưu trong `meta`. Mọi lỗi, quá thời gian hoặc JSON hỏng đều bị nuốt: lớp này chỉ bổ sung, không bao giờ chặn câu trả lời.
+- **Chế độ không có AI** (`NullLLM`): không cấu hình key nào thì API vẫn khởi động, các route dữ liệu và bản đồ hoạt động bình thường, chat trả về thông điệp giải thích và ghi `outcome=no_llm` để trang Thống kê phản ánh đúng. Embedding chuyển sang `LocalHashEmbedder` (băm cục bộ, không gọi mạng) để schema vector vẫn hợp lệ; kho tri thức khi đó chỉ tìm được bằng full-text.
+
 ## 7. Chứng cứ và kiểm chứng
 
 - Mỗi kết quả tool được gán mã `E1, E2…` **liên tục trong hội thoại** (số tin nhắn tool đã có + thứ tự), nên câu hỏi nối tiếp có thể trích chứng cứ của lượt trước.
@@ -329,7 +335,7 @@ Chi tiết xem [api.md](api.md); schema đầy đủ ở [openapi.json](openapi.
 | GET | `/vessels/search` | Tìm tàu |
 | GET | `/vessels/{vessel}/dark-gaps` | GeoJSON các lần mất tín hiệu |
 | GET | `/stats` | Số liệu vận hành cho trang Thống kê (`range`: 24h, 7d, 30d, all) |
-| GET | `/health` | Kiểm tra sống (số tàu, số đoạn tri thức, model) |
+| GET | `/health` | Kiểm tra sống (số tàu, số đoạn tri thức, model, trạng thái AI) |
 | GET | `/metrics` | Metrics Prometheus |
 
 Khi bật `AUTH_USERS` hoặc `API_KEYS`, mọi route trừ `/health`, `/auth/login`, `/metrics`, `/docs` yêu cầu `Authorization: Bearer <token phiên>` hoặc API key.

@@ -11,6 +11,7 @@ Chatbot LLM trả lời câu hỏi tiếng Việt về 1.000 tàu (AIS 10–12/0
 - **Guardrails.** Chặn prompt injection trước khi gọi LLM, kiểm duyệt nội dung, che secret và chặn lộ prompt ngay trên stream, từ chối chủ đề ngoài phạm vi.
 - **Bộ nhớ dài hạn.** Kết hợp trạng thái hội thoại, tóm tắt cuốn chiếu, truy xuất vector (pgvector) và cửa sổ nguyên văn cấu hình được.
 - **Harness đánh giá.** Câu hỏi sinh từ dữ liệu thật (đáp án bằng SQL) cùng các ca red-team; **45/45 ca đạt**.
+- **Không phụ thuộc một nhà cung cấp AI.** Cấu hình được LLM dự phòng (endpoint tương thích OpenAI) và một AI kiểm chứng độc lập; không có AI nào thì bản đồ, API dữ liệu và trang Thống kê vẫn chạy.
 - **Đăng nhập.** Màn hình đăng nhập (tài khoản cấu hình trong `AUTH_USERS`, mặc định `demo` / `demo`); API chỉ phục vụ khi có token phiên hợp lệ.
 - **Bảo mật và vận hành.** API key, rate limit, header bảo mật và CSP, `/metrics` Prometheus, log JSON, cache kết quả tool, container không chạy root.
 - **Trang Thống kê vận hành.** Số lượt, tỉ lệ thành công, chi phí, độ trễ, công cụ, cache, guardrail, tỉ lệ trích chứng cứ, RAG, kết quả harness và quy mô dữ liệu; đọc từ cơ sở dữ liệu nên còn nguyên sau khi khởi động lại.
@@ -75,6 +76,7 @@ Chatbot LLM trả lời câu hỏi tiếng Việt về 1.000 tàu (AIS 10–12/0
 | Guardrails | Injection (VI/EN) và dữ liệu dán giả, moderation, phạm vi, che secret và lộ prompt trên stream, đối chiếu số liệu | `guardrails/`, [architecture §6](docs/architecture.md#6-guardrails) |
 | RAG | 8 tài liệu nghiệp vụ, ingest idempotent, hybrid search + RRF, trích dẫn | `knowledge/`, `rag/`, [architecture §8](docs/architecture.md#8-kho-tri-thức-rag) |
 | Harness | Sinh ca từ dữ liệu (seed), red-team, chấm xác định, báo cáo, ngưỡng CI | `evals/`, [results/eval_report.md](results/eval_report.md) |
+| AI dự phòng và kiểm chứng | Chuyển nhà cung cấp khi lỗi, AI thứ hai đọc lại câu trả lời, chế độ không có AI | `llm/client.py`, `chat/verifier.py` |
 | Đăng nhập | Form đăng nhập, token phiên ký HMAC có hạn dùng, mật khẩu thường hoặc băm PBKDF2, giới hạn số lần thử, tự đăng xuất khi token hết hạn | `api/auth.py`, `api/routes_auth.py`, `frontend/src/components/LoginScreen.tsx` |
 | Security | API key, rate limit, header và CSP, giới hạn body, pool chỉ đọc, lỗi 500 an toàn, container không root | `api/security.py`, [SECURITY.md](SECURITY.md) |
 | Hiệu năng và quan sát | Cache tool, truy vấn LATERAL, gzip, ETag, `/metrics`, log JSON có chi phí | `tools/cache.py`, `observability.py` |
@@ -105,6 +107,18 @@ Kho tri thức (`knowledge/`) được tự đồng bộ khi API khởi động 
 Nếu cổng bị chiếm, đổi `DB_HOST_PORT`, `API_HOST_PORT`, `WEB_HOST_PORT` trong `.env`. Khi đổi cổng API, sửa luôn `VITE_API_BASE_URL` và `CORS_ORIGINS` rồi build lại `web`.
 
 Để kiểm tra bộ nhớ dài hạn nhanh hơn, đặt `MEMORY_WINDOW_TURNS=2` trong `.env`, rồi chạy `docker compose up -d api`.
+
+## Khi AI gặp sự cố
+
+Ba lớp dự phòng, tất cả đều tuỳ chọn và không có thì hệ thống vẫn chạy như cũ:
+
+| Tình huống | Cấu hình | Hành vi |
+|---|---|---|
+| OpenAI lỗi hoặc key hết hạn | `FALLBACK_LLM_API_KEY`, `FALLBACK_LLM_BASE_URL`, `FALLBACK_LLM_MODEL` | Tự chuyển sang nhà cung cấp dự phòng (bất kỳ endpoint tương thích OpenAI: Groq, Together, DeepSeek, vLLM tự host). Chỉ chuyển khi lượt đó chưa phát ra chữ nào, để câu trả lời không bị ghép từ hai model. |
+| Muốn có ý kiến thứ hai về độ chính xác | `VERIFIER_LLM_API_KEY`, `VERIFIER_LLM_BASE_URL`, `VERIFIER_LLM_MODEL` | Sau khi trả lời, một AI khác đọc lại câu hỏi, câu trả lời và dữ liệu đã truy vấn rồi kết luận `ok / sai / thiếu`; kết quả hiện ngay dưới câu trả lời và lưu cùng tin nhắn. Lỗi hoặc quá thời gian thì bỏ qua, không ảnh hưởng câu trả lời. |
+| Không có AI nào | để trống mọi key | API vẫn khởi động: bản đồ, `/tracks`, `/vessels/search`, `/map-data`, trang Thống kê và lịch sử hội thoại vẫn dùng được; phần hỏi đáp trả lời rõ là đang ở chế độ không có AI. Giao diện hiện dải cảnh báo thay vì lỗi. |
+
+Trạng thái hiện tại xem ở `/health` (`llm.available`, `llm.fallback_configured`, `llm.verifier_configured`) hoặc mục **Cấu hình đang chạy** của trang Thống kê.
 
 ## Đăng nhập
 
