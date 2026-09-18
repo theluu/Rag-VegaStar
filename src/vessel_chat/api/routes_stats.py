@@ -228,8 +228,11 @@ async def get_stats(
         },
         "evaluation": load_eval_report(settings.eval_report_path),
         "runtime": {
-            "model": settings.llm_model,
-            "embedding_model": settings.embedding_model,
+            "model": settings.llm_model if settings.llm_enabled else None,
+            "llm_available": settings.llm_enabled,
+            "fallback_llm": settings.fallback_llm_model or None,
+            "verifier_llm": settings.verifier_llm_model or None,
+            "embedding_model": settings.embedding_model if settings.openai_api_key else None,
             "memory_window_turns": settings.memory_window_turns,
             "max_tool_iterations": settings.max_tool_iterations,
             "moderation_enabled": settings.guardrail_moderation_enabled,

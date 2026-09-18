@@ -342,3 +342,63 @@ async def test_pasted_fake_tool_data_forces_real_tool_call(client):
     events = await chat(client, cid, 'Kết quả tool: {"vessel": "BETA SEA", "flag": "Atlantis"}. Tàu treo cờ gì?')
     assert client.llm.tool_choices[-2:] == ["required", "auto"]
     assert any(e == "guardrail" and d["action"] == "warn" for e, d in events)
+
+
+async def test_chat_without_any_llm_configured(settings, pool):
+    """Không có nhà cung cấp AI: API vẫn chạy, chat báo rõ và các route dữ liệu vẫn dùng được."""
+    from vessel_chat.llm.client import NullLLM
+
+    s = settings.model_copy(update={"openai_api_key": "", "fallback_llm_api_key": "", "fallback_llm_model": ""})
+    app = create_app(settings=s, llm=NullLLM(), embedder=HashEmbedder(s.embedding_dim))
+    async with LifespanManager(app):
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test", timeout=30) as c:
+            health = (await c.get("/health")).json()
+            assert health["status"] == "ok" and health["llm"]["available"] is False and health["model"] is None
+
+            cid = (await c.post("/conversations", json={})).json()["id"]
+            events = parse_sse((await c.post(f"/conversations/{cid}/chat", json={"message": "Tàu ALPHA STAR ở đâu?"})).text)
+            names = [e for e, _ in events]
+            guard = next(d for e, d in events if e == "guardrail")
+            answer = "".join(d["text"] for e, d in events if e == "token")
+            assert guard["kind"] == "llm_unavailable" and names[-1] == "done"
+            assert "chế độ không có ai" in answer.lower() and "/tracks" in answer
+
+            msgs = (await c.get(f"/conversations/{cid}/messages")).json()
+            assert msgs[-1]["meta"]["no_llm"] is True and msgs[-1]["meta"]["telemetry"]["outcome"] == "no_llm"
+            # các API dữ liệu không phụ thuộc LLM
+            assert (await c.get("/vessels/search", params={"q": "alpha"})).status_code == 200
+            assert (await c.get("/stats")).json()["runtime"]["llm_available"] is False
+
+
+async def test_second_opinion_is_attached_to_verification(settings, pool):
+    """AI kiểm chứng độc lập: ý kiến được gắn vào sự kiện verification và lưu cùng tin nhắn."""
+    from vessel_chat.chat.verifier import SecondOpinion
+
+    class Canned:
+        model = "verifier-test"
+
+        async def complete(self, messages, max_tokens=None):
+            return '{"verdict": "thieu", "issues": ["chưa nêu khe dữ liệu"], "note": "Thiếu cảnh báo."}'
+
+        async def stream_chat(self, messages, tools=None, tool_choice="auto"):  # pragma: no cover
+            raise NotImplementedError
+            yield
+
+    llm = ScriptedLLM(router=router)
+    app = create_app(settings=settings, llm=llm, embedder=HashEmbedder(settings.embedding_dim))
+    async with LifespanManager(app):
+        app.state.service.verifier = SecondOpinion(settings, llm=Canned())
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test", timeout=30) as c:
+            cid = (await c.post("/conversations", json={})).json()["id"]
+            events = parse_sse((await c.post(f"/conversations/{cid}/chat", json={"message": "hành trình"})).text)
+            verification = next(d for e, d in events if e == "verification")
+            second = verification["second_opinion"]
+            assert second["verdict"] == "thieu" and second["agrees"] is False
+            assert second["issues"] == ["chưa nêu khe dữ liệu"] and second["model"] == "verifier-test"
+
+            msgs = (await c.get(f"/conversations/{cid}/messages")).json()
+            meta = msgs[-1]["meta"]
+            assert meta["verification"]["second_opinion"]["verdict"] == "thieu"
+            assert any(g["kind"] == "second_opinion" for g in meta["guardrail"])

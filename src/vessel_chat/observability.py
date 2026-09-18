@@ -22,6 +22,7 @@ TOOL_LATENCY = Histogram("vc_tool_seconds", "Tool execution time", ["tool"],
                          buckets=(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5))
 
 GUARDRAIL_EVENTS = Counter("vc_guardrail_events_total", "Guardrail interventions", ["stage", "kind", "action"])
+LLM_PROVIDER_EVENTS = Counter("vc_llm_provider_events_total", "Chuyển nhà cung cấp LLM và kiểm chứng phụ", ["event"])
 AUTH_EVENTS = Counter("vc_auth_events_total", "Login attempts and rejected requests", ["event"])
 RATE_LIMITED = Counter("vc_rate_limited_total", "Requests rejected by rate limiting", ["limiter"])
 RAG_QUERIES = Counter("vc_rag_queries_total", "Knowledge base searches", ["hits"])

@@ -11,7 +11,7 @@ import asyncpg
 from ..config import Settings
 from ..guardrails.input import FAKE_DATA_REASON, INJECTION_NOTICE, Moderator, check_input
 from ..guardrails.output import OutputGuard, extract_answer_numbers, find_ungrounded_numbers, source_numbers
-from ..llm.client import Embedder, LLMClient
+from ..llm.client import Embedder, LLMClient, LLMUnavailable
 from ..llm.prompts import SYSTEM_PROMPT
 from ..memory.manager import MemoryManager
 from ..observability import CHAT_DURATION, CHAT_TTFT, CHAT_TURNS, GUARDRAIL_EVENTS, LLM_COST, LLM_TOKENS, log_event
@@ -22,6 +22,7 @@ from ..tools import ToolContext, ToolResult, ToolRun, openai_tool_specs, run_too
 from ..tools.cache import ToolCache
 from .events import Event
 from .evidence import build_evidence, cited_ids
+from .verifier import SecondOpinion
 
 log = logging.getLogger(__name__)
 
@@ -76,6 +77,15 @@ _OUTPUT_EVENT_TEXT = {
 }
 
 
+NO_LLM_MESSAGE = (
+    "Hệ thống đang chạy ở **chế độ không có AI** (chưa cấu hình nhà cung cấp LLM nào), nên tôi chưa trả lời "
+    "bằng ngôn ngữ tự nhiên được.\n\nCác phần sau vẫn hoạt động bình thường:\n"
+    "- Tra cứu và vẽ bản đồ qua API dữ liệu: `/vessels/search`, `/tracks`, `/vessels/{tàu}/dark-gaps`, `/map-data/{id}`.\n"
+    "- Trang **Thống kê vận hành** và toàn bộ lịch sử hội thoại đã lưu.\n\n"
+    "Đặt `OPENAI_API_KEY` (hoặc `FALLBACK_LLM_API_KEY` của nhà cung cấp khác) rồi khởi động lại API là dùng lại được."
+)
+
+
 def _error_payload(exc: Exception) -> dict:
     name = type(exc).__name__
     if name == "RateLimitError":
@@ -104,6 +114,7 @@ class ChatService:
         system_prompt: str,
         tool_pool: asyncpg.Pool | None = None,
         moderator: Moderator | None = None,
+        verifier: SecondOpinion | None = None,
     ):
         self.pool = pool
         self.tool_pool = tool_pool or pool
@@ -113,6 +124,7 @@ class ChatService:
         self.llm = llm
         self.settings = settings
         self.memory = MemoryManager(pool, llm, embedder, settings, system_prompt)
+        self.verifier = verifier or SecondOpinion(settings)
         self.tool_specs = openai_tool_specs()
         self._locks: dict[str, asyncio.Lock] = {}
 
@@ -334,6 +346,14 @@ class ChatService:
                     "auto_cited": auto_cited,
                     "grounded": not ungrounded and not unknown,
                 }
+                # AI kiểm chứng độc lập (nếu có cấu hình): chỉ bổ sung ý kiến, không chặn câu trả lời
+                if self.verifier.enabled and evidence:
+                    second = await self.verifier.review(text, answer, evidence)
+                    if second:
+                        verification["second_opinion"] = second
+                        if not second["agrees"]:
+                            guard_log.append({"stage": "output", "action": "warn", "kind": "second_opinion",
+                                              "verdict": second["verdict"], "issues": second["issues"]})
                 yield Event("verification", verification)
                 if ungrounded:
                     guard_log.append({"stage": "output", "action": "warn", "kind": "ungrounded_numbers",
@@ -364,6 +384,17 @@ class ChatService:
                              meta={"data_ids": data_ids, "evidence": evidence, "interrupted": True})
             self.memory.schedule_after_turn(conv_id, turn)
             raise
+        except LLMUnavailable:
+            outcome = "no_llm"
+            log.warning("Lượt %s của hội thoại %s: không có nhà cung cấp LLM", turn, conv_id)
+            answer = NO_LLM_MESSAGE
+            yield Event("guardrail", {"stage": "system", "action": "warn", "kind": "llm_unavailable",
+                                      "message": "Chưa cấu hình dịch vụ AI; chỉ các API dữ liệu hoạt động."})
+            yield Event("token", {"text": answer})
+            telemetry = self._telemetry(outcome, started, time.perf_counter(), tool_runs, usage_total)
+            message_id = await self._save(conv_id, turn, "assistant", answer,
+                                          meta={"data_ids": data_ids, "evidence": evidence,
+                                                "no_llm": True, "telemetry": telemetry})
         except Exception as exc:  # noqa: BLE001
             outcome = "error"
             log.exception("Lỗi khi xử lý lượt %s của hội thoại %s", turn, conv_id)

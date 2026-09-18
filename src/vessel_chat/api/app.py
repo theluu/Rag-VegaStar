@@ -16,10 +16,20 @@ from fastapi.responses import JSONResponse, Response
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from ..chat.service import ChatService, build_system_prompt
+from ..chat.verifier import SecondOpinion
 from ..config import Settings, get_settings
 from ..db import create_pool
 from ..guardrails.input import Moderator
-from ..llm.client import Embedder, LLMClient, OpenAIEmbedder, OpenAILLM, OpenAIModerator
+from ..llm.client import (
+    Embedder,
+    FallbackLLM,
+    LLMClient,
+    LocalHashEmbedder,
+    NullLLM,
+    OpenAIEmbedder,
+    OpenAILLM,
+    OpenAIModerator,
+)
 from ..observability import MetricsMiddleware, configure_logging
 from ..rag.store import ingest_directory
 from . import routes_auth, routes_chat, routes_conversations, routes_map, routes_stats
@@ -42,12 +52,16 @@ def create_app(
         settings.require("database_url")
         pool = await create_pool(settings)
         tool_pool = await create_pool(settings, readonly=True)
-        chat_llm = llm or OpenAILLM(settings)
-        chat_embedder = embedder or OpenAIEmbedder(settings)
+        chat_llm = llm or _build_llm(settings)
+        chat_embedder = embedder or (
+            OpenAIEmbedder(settings) if settings.openai_api_key else LocalHashEmbedder(settings.embedding_dim)
+        )
         # Moderation thật chỉ bật khi dùng LLM thật (test truyền LLM giả và moderator giả nếu cần)
         chat_moderator = moderator
-        if chat_moderator is None and llm is None and settings.guardrail_moderation_enabled:
+        if (chat_moderator is None and llm is None and settings.guardrail_moderation_enabled
+                and settings.openai_api_key):
             chat_moderator = OpenAIModerator(settings)
+        verifier = SecondOpinion(settings) if llm is None else None
         if settings.rag_auto_ingest and Path(settings.knowledge_dir).is_dir():
             try:
                 async with pool.acquire() as conn:
@@ -56,7 +70,7 @@ def create_app(
                 log.exception("Không đồng bộ được kho tri thức; tiếp tục chạy với dữ liệu hiện có")
         system_prompt = await build_system_prompt(pool)
         service = ChatService(pool, chat_llm, chat_embedder, settings, system_prompt,
-                              tool_pool=tool_pool, moderator=chat_moderator)
+                              tool_pool=tool_pool, moderator=chat_moderator, verifier=verifier)
         app.state.pool = pool
         app.state.tool_pool = tool_pool
         app.state.service = service
@@ -64,7 +78,9 @@ def create_app(
         log.info(
             "API sẵn sàng",
             extra={"fields": {
-                "model": settings.llm_model,
+                "model": settings.llm_model if settings.llm_enabled else "(không có AI)",
+                "fallback_llm": settings.fallback_llm_model or None,
+                "verifier_llm": settings.verifier_llm_model or None,
                 "memory_window_turns": settings.memory_window_turns,
                 "api_keys": bool(settings.api_key_list),
                 "login_users": len(settings.auth_user_map),
@@ -137,7 +153,12 @@ def create_app(
             "status": "ok",
             "vessels": vessels,
             "knowledge_chunks": kb_chunks,
-            "model": settings.llm_model,
+            "model": settings.llm_model if settings.llm_enabled else None,
+            "llm": {
+                "available": settings.llm_enabled,
+                "fallback_configured": settings.fallback_llm_enabled,
+                "verifier_configured": settings.verifier_enabled,
+            },
             "memory_window_turns": settings.memory_window_turns,
             "auth_required": settings.auth_enabled,
             "login_enabled": bool(settings.auth_user_map),
@@ -150,6 +171,25 @@ def create_app(
             return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
     return app
+
+
+def _build_llm(settings: Settings) -> LLMClient:
+    """LLM chính + bản dự phòng (nếu có). Không cấu hình gì → chế độ không có AI."""
+    providers: list[LLMClient] = []
+    if settings.openai_api_key and settings.llm_model:
+        providers.append(OpenAILLM(settings))
+    if settings.fallback_llm_enabled:
+        providers.append(OpenAILLM(
+            settings,
+            api_key=settings.fallback_llm_api_key,
+            base_url=settings.fallback_llm_base_url,
+            model=settings.fallback_llm_model,
+            name="fallback",
+        ))
+    if not providers:
+        log.warning("Chưa cấu hình LLM: chạy ở chế độ không có AI (chỉ các API dữ liệu hoạt động)")
+        return NullLLM()
+    return providers[0] if len(providers) == 1 else FallbackLLM(providers)
 
 
 def _make_default_app() -> FastAPI:

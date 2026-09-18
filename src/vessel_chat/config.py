@@ -74,6 +74,18 @@ class Settings(BaseSettings):
     metrics_enabled: bool = True
     log_json: bool = True
 
+    # --- LLM dự phòng (tuỳ chọn): dùng khi nhà cung cấp chính lỗi/hết hạn; endpoint tương thích OpenAI ---
+    fallback_llm_api_key: str = ""
+    fallback_llm_base_url: str = ""  # vd. https://api.groq.com/openai/v1
+    fallback_llm_model: str = ""
+
+    # --- AI kiểm chứng độc lập (tuỳ chọn): đọc lại câu trả lời và dữ liệu đã truy vấn ---
+    verifier_llm_api_key: str = ""
+    verifier_llm_base_url: str = ""
+    verifier_llm_model: str = ""
+    verifier_timeout_seconds: float = 20
+    verifier_max_evidence_chars: int = 4000
+
     # --- Trang thống kê ---
     stats_enabled: bool = True
     stats_timezone: str = "Asia/Ho_Chi_Minh"  # múi giờ gom số liệu theo ngày
@@ -106,6 +118,19 @@ class Settings(BaseSettings):
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+    @property
+    def fallback_llm_enabled(self) -> bool:
+        return bool(self.fallback_llm_api_key and self.fallback_llm_model)
+
+    @property
+    def verifier_enabled(self) -> bool:
+        return bool(self.verifier_llm_api_key and self.verifier_llm_model)
+
+    @property
+    def llm_enabled(self) -> bool:
+        """Có ít nhất một nhà cung cấp LLM; nếu không, hệ thống chạy ở chế độ không có AI."""
+        return bool(self.openai_api_key) or self.fallback_llm_enabled
 
     @property
     def auth_user_map(self) -> dict[str, str]:
