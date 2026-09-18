@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import type { Conversation } from '../lib/api'
 import { Icon } from './Icon'
+import { RESOURCES } from './Resources'
 
 export type AppView = 'chat' | 'stats'
 
@@ -134,6 +135,20 @@ export function ConversationList({
               })}
             </ul>
           </section>
+        ))}
+      </div>
+
+      <div className="rail-resources">
+        {RESOURCES.filter((r) => !r.href.startsWith('#')).slice(0, 3).map((r) => (
+          <a
+            key={r.label}
+            href={r.href}
+            title={`${r.label} — ${r.note}`}
+            {...(r.external ? { target: '_blank', rel: 'noreferrer noopener' } : {})}
+          >
+            <Icon name={r.icon} size={14} />
+            {r.label.replace(' (PDF)', '').replace('Bản trình bày 6 slide', 'Bản trình bày').replace('Mã nguồn trên GitHub', 'Mã nguồn')}
+          </a>
         ))}
       </div>
 

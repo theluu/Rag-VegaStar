@@ -30,10 +30,12 @@ export interface Health {
   status: string
   vessels: number
   knowledge_chunks: number
-  model: string
+  model: string | null
   memory_window_turns: number
   auth_required: boolean
   login_enabled: boolean
+  // Máy chủ bản cũ chưa có trường này
+  llm?: { available: boolean; fallback_configured: boolean; verifier_configured: boolean }
 }
 
 export interface EvidenceFact {
@@ -52,6 +54,14 @@ export interface Evidence {
   data_ids: string[]
 }
 
+export interface SecondOpinion {
+  model: string
+  verdict: 'ok' | 'sai' | 'thieu' | 'khong_ro'
+  agrees: boolean
+  issues: string[]
+  note: string
+}
+
 export interface Verification {
   numbers_checked: number
   ungrounded_numbers: string[]
@@ -59,6 +69,7 @@ export interface Verification {
   unknown_citations: string[]
   evidence_count: number
   grounded: boolean
+  second_opinion?: SecondOpinion
 }
 
 export interface GuardrailNote {

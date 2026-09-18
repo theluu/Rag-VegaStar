@@ -14,9 +14,10 @@ interface Props {
   onSend: (text: string) => void
   onStop: () => void
   onShowLayer: (id: string) => void
+  llmAvailable?: boolean
 }
 
-export function ChatPanel({ title, turns, layers, streaming, loading, onSend, onStop, onShowLayer }: Props) {
+export function ChatPanel({ title, turns, layers, streaming, loading, onSend, onStop, onShowLayer, llmAvailable = true }: Props) {
   const [draft, setDraft] = useState('')
   const scroller = useRef<HTMLDivElement>(null)
   const input = useRef<HTMLTextAreaElement>(null)
@@ -61,7 +62,7 @@ export function ChatPanel({ title, turns, layers, streaming, loading, onSend, on
 
       <div className="chat-scroll" ref={scroller} aria-live="polite" aria-busy={streaming}>
         {loading && <p className="note centered">Đang mở cuộc hỏi đáp…</p>}
-        {!loading && turns.length === 0 && <Welcome onPick={onSend} disabled={streaming} />}
+        {!loading && turns.length === 0 && <Welcome onPick={onSend} disabled={streaming} llmAvailable={llmAvailable} />}
         {turns.map((t) => (
           <TurnView key={t.key} turn={t} layers={layers} onShowLayer={onShowLayer} />
         ))}

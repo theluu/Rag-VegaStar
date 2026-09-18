@@ -2906,3 +2906,249 @@ button:disabled {
     display: flex;
   }
 }
+
+/* ======================================================================
+ * Tài nguyên cho người đánh giá, kịch bản demo, ý kiến AI kiểm chứng
+ * ==================================================================== */
+.welcome-warning {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  border: 1px solid #f3dc9c;
+  border-radius: var(--r-md);
+  background: var(--amber-50);
+  color: #8a5e00;
+  font-size: var(--fs-sm);
+}
+
+.demo-script,
+.welcome-resources {
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.demo-script h3,
+.welcome-resources h3 {
+  margin: 0;
+  font-size: var(--fs-md);
+  font-weight: 700;
+}
+
+.demo-script header p,
+.welcome-resources header p {
+  margin: 2px 0 10px;
+  color: var(--ink-3);
+  font-size: var(--fs-xs);
+}
+
+.demo-script ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: demo;
+}
+
+.demo-script li + li {
+  margin-top: 4px;
+}
+
+.demo-script button {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--r-md);
+  background: var(--canvas);
+  text-align: left;
+}
+
+.demo-script button:hover:not(:disabled) {
+  border-color: var(--magenta);
+  background: var(--magenta-50);
+}
+
+.demo-script button:disabled {
+  opacity: 0.6;
+}
+
+.demo-no {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--navy-900);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.demo-script strong {
+  display: block;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.demo-script em {
+  display: block;
+  margin-top: 1px;
+  color: var(--ink-3);
+  font-size: var(--fs-xs);
+  font-style: normal;
+}
+
+.resources {
+  display: grid;
+  gap: 8px;
+}
+
+@media (min-width: 560px) {
+  .resources {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.resource {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: inherit;
+  text-decoration: none;
+}
+
+.resource:hover {
+  border-color: var(--navy-700);
+  background: var(--sea-100);
+}
+
+.resource-icon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border-radius: 8px;
+  background: var(--magenta-50);
+  color: var(--magenta);
+}
+
+.resource-body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.resource-body strong {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+
+.resource-body strong svg {
+  color: var(--ink-3);
+}
+
+.resource-body span {
+  color: var(--ink-3);
+  font-size: var(--fs-xs);
+  line-height: 1.35;
+}
+
+.rail-resources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.rail-resources a {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 9px;
+  border: 1px solid rgb(255 255 255 / 0.14);
+  border-radius: 20px;
+  color: var(--navy-200);
+  font-size: var(--fs-xs);
+  text-decoration: none;
+}
+
+.rail-resources a:hover {
+  border-color: rgb(255 255 255 / 0.4);
+  color: #fff;
+}
+
+.verify-second {
+  background: var(--sea-100);
+  color: var(--navy-800);
+}
+
+/* Link xem trước sản phẩm ngay ở màn hình đăng nhập */
+.login-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.login-links > span {
+  width: 100%;
+  color: var(--ink-3);
+  font-size: var(--fs-xs);
+}
+
+.login-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 11px;
+  border: 1px solid var(--line-strong);
+  border-radius: 20px;
+  color: var(--ink);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.login-link:hover {
+  border-color: var(--navy-700);
+  background: var(--sea-100);
+}
+
+.login-link.primary {
+  border-color: var(--magenta);
+  background: var(--magenta-50);
+  color: var(--magenta);
+}
+
+.pitch-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 22px;
+  padding: 11px 18px;
+  border: 1px solid rgb(255 255 255 / 0.35);
+  border-radius: 30px;
+  color: #fff;
+  font-weight: 600;
+  text-decoration: none;
+  backdrop-filter: blur(4px);
+}
+
+.pitch-cta:hover {
+  background: rgb(255 255 255 / 0.12);
+}

@@ -45,8 +45,8 @@ export function LoginScreen({ notice }: { notice?: string | null }) {
 
   return (
     <div className="login">
-      <aside className="login-art" aria-hidden>
-        <svg className="login-chart" viewBox="0 0 600 800" preserveAspectRatio="xMidYMid slice">
+      <aside className="login-art">
+        <svg className="login-chart" viewBox="0 0 600 800" preserveAspectRatio="xMidYMid slice" aria-hidden>
           <g stroke="#8fa9c0" strokeWidth="0.6" opacity="0.22">
             {Array.from({ length: 9 }, (_, i) => (
               <path key={`h${i}`} d={`M0 ${i * 100}H600`} />
@@ -63,7 +63,7 @@ export function LoginScreen({ notice }: { notice?: string | null }) {
           <circle cx="570" cy="120" r="7" fill="#0b2238" stroke="#f07bb3" strokeWidth="2.5" />
         </svg>
         <div className="login-brand">
-          <svg viewBox="0 0 40 40" width="44" height="44">
+          <svg viewBox="0 0 40 40" width="44" height="44" aria-hidden>
             <rect width="40" height="40" rx="10" fill="#B3246B" />
             <circle cx="20" cy="20" r="11" fill="none" stroke="#fff" strokeOpacity=".35" strokeWidth="1.5" />
             <path d="M20 7v26M7 20h26" stroke="#fff" strokeOpacity=".35" strokeWidth="1.2" />
@@ -81,6 +81,10 @@ export function LoginScreen({ notice }: { notice?: string | null }) {
             <li>Mỗi con số đều có mã chứng cứ truy về dữ liệu gốc</li>
             <li>Dữ liệu AIS 10–12/09/2026, vùng 102–118°E, 6–23°N</li>
           </ul>
+          <a className="pitch-cta" href="/pitch/">
+            Xem bản trình bày 6 slide
+            <Icon name="chevron" size={16} />
+          </a>
         </div>
       </aside>
 
@@ -154,6 +158,23 @@ export function LoginScreen({ notice }: { notice?: string | null }) {
           </button>
 
           {LOGIN_HINT && <p className="login-hint">{LOGIN_HINT}</p>}
+
+          <div className="login-links">
+            <span>Chưa có tài khoản? Xem trước sản phẩm:</span>
+            <a className="login-link primary" href="/pitch/">
+              <Icon name="chart" size={15} />
+              Bản trình bày 6 slide
+            </a>
+            <a className="login-link" href="/VegaStar-Tong-quan.pdf">
+              <Icon name="book" size={15} />
+              Tài liệu tổng quan (PDF)
+            </a>
+            <a className="login-link" href="https://github.com/theluu/Rag-VegaStar" target="_blank" rel="noreferrer noopener">
+              <Icon name="database" size={15} />
+              Mã nguồn
+            </a>
+          </div>
+
           <p className="login-foot">Phiên đăng nhập tự hết hạn sau một thời gian. Không chia sẻ tài khoản.</p>
         </form>
       </main>

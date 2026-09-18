@@ -1,4 +1,5 @@
 import { Icon, type IconName } from './Icon'
+import { DemoScript, ResourceButtons } from './Resources'
 
 const GROUPS: { icon: IconName; title: string; text: string; examples: string[] }[] = [
   {
@@ -34,7 +35,7 @@ const GROUPS: { icon: IconName; title: string; text: string; examples: string[] 
   },
 ]
 
-export function Welcome({ onPick, disabled }: { onPick: (q: string) => void; disabled: boolean }) {
+export function Welcome({ onPick, disabled, llmAvailable = true }: { onPick: (q: string) => void; disabled: boolean; llmAvailable?: boolean }) {
   return (
     <div className="welcome">
       <h2>Hỏi về tàu biển bằng tiếng Việt</h2>
@@ -42,6 +43,12 @@ export function Welcome({ onPick, disabled }: { onPick: (q: string) => void; dis
         1.000 tàu trong vùng 102–118°E, 6–23°N, dữ liệu AIS từ 10 đến 12/09/2026. Mọi con số đều lấy từ dữ liệu;
         vị trí và hành trình tự hiện trên bản đồ.
       </p>
+      {!llmAvailable && (
+        <p className="welcome-warning" role="status">
+          <Icon name="alert" size={16} />
+          Chưa cấu hình dịch vụ AI nên phần hỏi đáp tạm nghỉ. Bản đồ, API dữ liệu và trang Thống kê vẫn dùng được.
+        </p>
+      )}
       <div className="welcome-groups">
         {GROUPS.map((g) => (
           <section key={g.title} className="welcome-group">
@@ -66,6 +73,16 @@ export function Welcome({ onPick, disabled }: { onPick: (q: string) => void; dis
           </section>
         ))}
       </div>
+
+      <DemoScript onPick={onPick} disabled={disabled} />
+
+      <section className="welcome-resources">
+        <header>
+          <h3>Tài liệu và công cụ kiểm chứng</h3>
+          <p>Dành cho người đánh giá: hiểu hệ thống, tự kiểm tra số liệu và xem mã nguồn.</p>
+        </header>
+        <ResourceButtons />
+      </section>
     </div>
   )
 }

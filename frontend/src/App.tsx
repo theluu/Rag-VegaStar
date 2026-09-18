@@ -73,11 +73,20 @@ export default function App() {
       key={session?.username ?? 'guest'}
       username={loginRequired ? session?.username : null}
       onLogout={loginRequired ? logout : undefined}
+      llmAvailable={server.status !== 'ready' || server.health.llm?.available !== false}
     />
   )
 }
 
-function Workspace({ username, onLogout }: { username?: string | null; onLogout?: () => void }) {
+function Workspace({
+  username,
+  onLogout,
+  llmAvailable = true,
+}: {
+  username?: string | null
+  onLogout?: () => void
+  llmAvailable?: boolean
+}) {
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
   const [turns, setTurns] = useState<Turn[]>([])
@@ -345,6 +354,7 @@ function Workspace({ username, onLogout }: { username?: string | null; onLogout?
         onSend={(t) => void send(t)}
         onStop={() => abortRef.current?.abort()}
         onShowLayer={showLayer}
+        llmAvailable={llmAvailable}
       />
       {problem && (
         <div className="toast" role="alert">

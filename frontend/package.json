@@ -8,7 +8,9 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "prebuild": "node scripts/copy-docs.mjs",
+    "predev": "node scripts/copy-docs.mjs"
   },
   "dependencies": {
     "maplibre-gl": "^6.10.0",
