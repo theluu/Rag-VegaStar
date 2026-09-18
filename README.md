@@ -1,6 +1,6 @@
 # Vessel Chat: chatbot tra cứu tàu biển
 
-**Bản chạy thử:** https://vegastar.themeshub.net (đăng nhập `demo` / `demo`)
+**Bản chạy thử:** https://vegastar.themeshub.net (đăng nhập `demo` / `demo`) · [Bản trình bày 6 slide](https://vegastar.themeshub.net/pitch/) · [Tài liệu tổng quan (PDF)](docs/VegaStar-Tong-quan.pdf)
 
 Chatbot LLM trả lời câu hỏi tiếng Việt về 1.000 tàu (AIS 10–12/09/2026): tàu của ai, đang ở đâu, đã đi những đâu, có tắt AIS không. **Mỗi câu trả lời có chứng cứ** và được hệ thống tự đối chiếu số liệu.
 

@@ -22,7 +22,7 @@ PostgreSQL 14 của hệ thống: database `vessel` (PostGIS 3.2, pgvector 0.8, 
 | Mã nguồn + virtualenv | `/opt/vegastar` (user `vegastar`) |
 | Cấu hình | `/opt/vegastar/.env` (quyền 600, **không nằm trong git**) |
 | Dữ liệu CSV | `/opt/vegastar/data` |
-| Giao diện đã build | `/var/www/vegastar` |
+| Giao diện đã build | `/var/www/vegastar` (gồm `/pitch/` và `VegaStar-Tong-quan.pdf`) |
 | Service | `/etc/systemd/system/vegastar-api.service` |
 | nginx | `/etc/nginx/sites-available/vegastar.themeshub.net` |
 | Chứng chỉ | `/etc/letsencrypt/live/vegastar.themeshub.net` (certbot tự gia hạn) |
@@ -50,7 +50,7 @@ cd /opt/vegastar && python3.12 -m venv .venv && .venv/bin/pip install .
 # 5. Giao diện: build trên máy dev rồi tải lên (tránh cài Node trên server)
 cd frontend && VITE_API_BASE_URL=https://vegastar.themeshub.net/api \
   VITE_SITE_URL=https://vegastar.themeshub.net npm run build
-scp -r dist/* root@server:/var/www/vegastar/
+scp -r dist/* root@server:/var/www/vegastar/   # prebuild tự chép PDF tổng quan và ảnh cho trang pitch
 
 # 6. Service + nginx + SSL
 systemctl enable --now vegastar-api
