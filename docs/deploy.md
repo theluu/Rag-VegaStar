@@ -70,6 +70,7 @@ Kho tri thức (RAG) tự đồng bộ khi API khởi động. Lịch sử hội
 | `API_HOST` / `API_PORT` | `127.0.0.1` / `8011` | Chỉ nginx gọi được; không mở cổng ra Internet |
 | `CORS_ORIGINS` | `https://vegastar.themeshub.net` | Chỉ tên miền thật được gọi API từ trình duyệt |
 | `TRUST_PROXY_HEADERS` | `true` | Rate limit tính theo IP thật qua `X-Forwarded-For` |
+| `ROOT_PATH` | `/api` | nginx phục vụ API dưới `/api/`; thiếu biến này thì `/api/docs` không tải được mô tả OpenAPI |
 | `AUTH_USERS` | `demo:demo` | Tài khoản dùng thử; nên đổi hoặc dùng chuỗi băm khi public lâu dài |
 | `SESSION_SECRET` | chuỗi ngẫu nhiên 32 byte | Không đổi khi khởi động lại nên người dùng không bị đăng xuất |
 | `DATA_DIR`, `KNOWLEDGE_DIR`, `EVAL_REPORT_PATH` | đường dẫn tuyệt đối trong `/opt/vegastar` | systemd chạy với `ProtectSystem=strict` |
@@ -86,7 +87,8 @@ cd frontend && npm run build           # với các biến VITE_* của tên mi�
 
 # Trên server
 tar xzf /tmp/code.tar.gz -C /opt/vegastar          # .env và data/ giữ nguyên
-/opt/vegastar/.venv/bin/pip install /opt/vegastar  # khi pyproject đổi
+cd /opt/vegastar && .venv/bin/pip install .        # BẮT BUỘC: service chạy bản đã cài trong venv,
+                                                    # chỉ giải nén mã nguồn thì code mới không có hiệu lực
 rsync -a --delete dist/ /var/www/vegastar/
 chown -R vegastar:vegastar /opt/vegastar
 systemctl restart vegastar-api
@@ -106,6 +108,8 @@ journalctl -u vegastar-api -n 30 --no-pager
   Kiểm tra nhanh sau khi deploy: `grep -rl "vegastar.themeshub.net/api" /var/www/vegastar/assets`.
 - **`try_files $uri $uri/ /index.html`**: thiếu `$uri/` thì `/pitch/` rơi về ứng dụng React thay vì trang tĩnh.
 - **Chặn `/api/metrics`**: endpoint Prometheus không có xác thực và lộ lưu lượng, chi phí.
+- **Quên `pip install .` sau khi cập nhật mã nguồn**: service vẫn chạy bản cũ trong venv, thay đổi không có tác dụng.
+- **`ROOT_PATH=/api`**: thiếu thì `/api/docs` mở ra nhưng báo lỗi "Unable to render this definition" vì đi tìm `/openapi.json` ở gốc tên miền và nhận về HTML của giao diện.
 - **CSP phải cho phép máy chủ ảnh vệ tinh** (`https://server.arcgisonline.com`) nếu muốn dùng nút nền "Vệ tinh".
 
 ## Vận hành

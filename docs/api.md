@@ -1,7 +1,8 @@
 # API
 
 - **Base URL:** `http://localhost:8000` (cổng đổi được qua `API_HOST_PORT`).
-- **Schema OpenAPI:** [openapi.json](openapi.json), hoặc giao diện tương tác tại `/docs` khi server đang chạy.
+- **Schema OpenAPI:** [openapi.json](openapi.json), hoặc giao diện tương tác tại `/docs` khi server đang chạy (bản triển khai: <https://vegastar.themeshub.net/api/docs>).
+- **Sau reverse proxy:** đặt `ROOT_PATH` bằng tiền tố (vd. `/api`) để trang `/docs` và mục `servers` của OpenAPI trỏ đúng.
 - **Xác thực:** khi server bật `AUTH_USERS`, đăng nhập qua `POST /auth/login` rồi gửi `Authorization: Bearer <token>`; khi bật `API_KEYS`, gửi `X-API-Key: <khoá>` hoặc `Authorization: Bearer <khoá>`. Thiếu hoặc sai → 401. `/health`, `/auth/login`, `/metrics`, `/docs` luôn công khai.
 - **Giới hạn:** vượt `RATE_LIMIT_API_PER_MINUTE` / `RATE_LIMIT_CHAT_PER_MINUTE` → 429 kèm `Retry-After`; body > `MAX_REQUEST_BYTES` → 413.
 - **Header:** mọi response có `X-Request-ID` (gửi kèm để nối log), cùng các header bảo mật. Response JSON lớn được nén gzip; SSE không nén.
